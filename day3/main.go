@@ -38,7 +38,7 @@ func main() {
 	wirePath2 := getWirePath(inputs[1])
 
 	initialGridSize := getMaximumGridSize(wirePath1, wirePath2)
-	
+
 	// build the initial grid
 	grid := buildInitialGrid(initialGridSize)
 
@@ -67,7 +67,7 @@ const (
 	right
 )
 
-func directinFromString(s string) direction {
+func directionFromString(s string) direction {
 	var d direction
 
 	switch s {
@@ -117,10 +117,10 @@ func getMaximumGridSize(path1 []string, path2 []string) int {
 }
 
 // build initial grid starting from the maxumum size calculated from the input
-func buildInitialGrid(initialGridSize int) [][] rune {
-	grid := make([][]rune, initialGridSize * 2)
+func buildInitialGrid(initialGridSize int) [][]rune {
+	grid := make([][]rune, initialGridSize*2)
 	for idx := range grid {
-		grid[idx] = make([]rune, initialGridSize * 2)
+		grid[idx] = make([]rune, initialGridSize*2)
 		for innerIdx := range grid[idx] {
 			grid[idx][innerIdx] = '.'
 		}
@@ -143,20 +143,53 @@ func getGridOrigin(grid [][]rune) (int, int) {
 }
 
 func resizeGrid(grid [][]rune) [][]rune {
-
-	newGrid := make([][]rune, len(grid) * 2)
+	newGrid := make([][]rune, len(grid)*2)
 	for idx := range newGrid {
-		newGrid[idx] = make([]rune, len(grid[0]) * 2)
+		newGrid[idx] = make([]rune, len(grid[0])*2)
 		for innerIdx := range newGrid[idx] {
-			grid[idx][innerIdx] = '.'
+			newGrid[idx][innerIdx] = '.'
 		}
 	}
-	
-// 1 2
-// 3 4
 
-// 0 0 0 0
-// 0 1 2 0
-// 0 3 4 0
-// 0 0 0 0
+	startRowPos := (len(newGrid) - len(grid)) / 2
+	startColPos := (len(newGrid[0]) - len(grid[0])) / 2
+	for i := startRowPos; i < startRowPos+len(grid); i++ {
+		for j := startColPos; j < startColPos+len(grid[0]); j++ {
+			newGrid[i][j] = grid[i-startRowPos][j-startColPos]
+		}
+	}
+
+	return newGrid
+}
+
+func plotPath(grid [][]rune, path []string) {
+	x0, y0 := getGridOrigin(grid)
+	lastStep := '-'
+	grid[x0][y0] = 'o'
+	for _, step := range path {
+		direction := directionFromString(step[:1])
+		if noOfSteps, err := strconv.Atoi(step[1:]); err == nil {
+
+		} else {
+			panic(err)
+		}
+	}
+}
+
+func getSymbolForDirection(direction Direction) rune {
+	symbol := 'x'
+	switch direction {
+	case up:
+		symbol = '|'
+	case down:
+		symbol = '|'
+	case left:
+		symbol = '-'
+	case right:
+		symbol = '-'
+	default:
+		panic("Invalid direction received!")
+	}
+
+	return symbol
 }

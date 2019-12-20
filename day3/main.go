@@ -44,7 +44,9 @@ func main() {
 	grid := buildInitialGrid(initialGridSize)
 
 	// plot the path for wire 1
-	plotPath(grid, wirePath1)
+	grid = plotPath(grid, wirePath1)
+	// plot the path for wire 2
+	grid = plotPath(grid, wirePath2)
 	displayGrid(grid)
 	// part 1 solution
 	fmt.Println("The result to 1st part is: ", part1(grid))
@@ -54,7 +56,16 @@ func main() {
 }
 
 func part1(grid [][]rune) int {
-	return -1
+	var intersections []Coordinate
+	for i, _ := range grid {
+		for j, e := range grid[i] {
+			if e == 'X' {
+				intersections = append(intersections, Coordinate{x: i, y: j})
+			}
+		}
+	}
+
+	return getManhattanDistanceToClosestPoint(getGridOrigin(grid), intersections)
 }
 
 func part2(grid [][]rune) int {
@@ -69,6 +80,27 @@ const (
 	left
 	right
 )
+
+type Coordinate struct {
+	x int
+	y int
+}
+
+func manhattanDistance(p1 Coordinate, p2 Coordinate) int {
+	return int(math.Abs(float64(p1.x-p2.x)) + math.Abs(float64(p1.y-p2.y)))
+}
+
+func getManhattanDistanceToClosestPoint(origin Coordinate, intersections []Coordinate) int {
+	min := int(^uint(0) >> 1)
+	for _, intersection := range intersections {
+		distance := manhattanDistance(origin, intersection)
+		if distance < min {
+			min = distance
+		}
+	}
+
+	return min
+}
 
 func directionFromString(s string) Direction {
 	var d Direction
@@ -125,7 +157,7 @@ func buildInitialGrid(initialGridSize int) [][]rune {
 	for idx := range grid {
 		grid[idx] = make([]rune, initialGridSize*2)
 		for innerIdx := range grid[idx] {
-			grid[idx][innerIdx] = '.'
+			grid[idx][innerIdx] = ' '
 		}
 	}
 
@@ -141,8 +173,8 @@ func displayGrid(grid [][]rune) {
 	}
 }
 
-func getGridOrigin(grid [][]rune) (int, int) {
-	return len(grid) / 2, len(grid[0]) / 2
+func getGridOrigin(grid [][]rune) Coordinate {
+	return Coordinate{x: len(grid) / 2, y: len(grid[0]) / 2}
 }
 
 func resizeGrid(grid [][]rune) [][]rune {
@@ -150,7 +182,7 @@ func resizeGrid(grid [][]rune) [][]rune {
 	for idx := range newGrid {
 		newGrid[idx] = make([]rune, len(grid[0])*2)
 		for innerIdx := range newGrid[idx] {
-			newGrid[idx][innerIdx] = '.'
+			newGrid[idx][innerIdx] = ' '
 		}
 	}
 
@@ -165,51 +197,72 @@ func resizeGrid(grid [][]rune) [][]rune {
 	return newGrid
 }
 
-func plotPath(grid [][]rune, path []string) {
-	x0, y0 := getGridOrigin(grid)
+type void struct{}
+
+var member void
+
+func plotPath(grid [][]rune, path []string) [][]rune {
+	positions := make(map[Coordinate]void)
+
+	origin := getGridOrigin(grid)
 	// get the direction for the first step
 	direction := directionFromString(path[0][:1])
 	lastStep := getSymbolForDirection(direction)
-	grid[x0][y0] = 'o'
-	currX, currY := x0, y0
+	grid[origin.x][origin.y] = 'o'
+	curr := origin
 	for _, step := range path {
 		direction := directionFromString(step[:1])
 		symbol := getSymbolForDirection(direction)
 		if lastStep != symbol {
-			grid[currX][currY] = '+'
+			grid[curr.x][curr.y] = '+'
 		}
-		offsetX := 0
-		offsetY := 0
+		offset := Coordinate{x: 0, y: 0}
 		switch direction {
 		case up:
-			offsetX = -1
+			offset.x = -1
 		case down:
-			offsetX = 1
+			offset.x = 1
 		case left:
-			offsetY = -1
+			offset.y = -1
 		case right:
-			offsetY = 1
+			offset.y = 1
 		}
-		if noOfSteps, err := strconv.Atoi(step[1:]); err == nil {
-			for i := 0; i < noOfSteps; i++ {
-				// we need to check if we can move in that direction, if not
-				// resize the grid
-				if currX+offsetX >= len(grid) ||
-					currY+offsetY >= len(grid[0]) {
-					originOffsetX, originOffsetY := int(math.Abs(float64(currX)-float64(x0))), int(math.Abs(float64(currY)-float64(y0)))
-					grid = resizeGrid(grid)
-					origX0, origY0 := getGridOrigin(grid)
-					currX, currY = origX0+originOffsetX, origY0+originOffsetY
-				}
-				currX += offsetX
-				currY += offsetY
-				grid[currX][currY] = symbol
-				lastStep = symbol
-			}
-		} else {
+
+		noOfSteps, err := strconv.Atoi(step[1:])
+
+		if err != nil {
 			panic(err)
 		}
+
+		for i := 0; i < noOfSteps; i++ {
+			// we need to check if we can move in that direction, if not
+			// resize the grid
+			if curr.x+offset.x >= len(grid) ||
+				curr.x+offset.x < 0 ||
+				curr.y+offset.y >= len(grid[0]) ||
+				curr.y+offset.y < 0 {
+				originOffset := Coordinate{x: curr.x - origin.x, y: curr.y - origin.y}
+				grid = resizeGrid(grid)
+				orig := getGridOrigin(grid)
+				curr = Coordinate{x: orig.x + originOffset.x, y: orig.y + originOffset.y}
+				// the new origin will be set
+				origin = orig
+			}
+
+			curr = Coordinate{curr.x + offset.x, curr.y + offset.y}
+			_, present := positions[curr]
+			positions[curr] = member
+			currSymbol := grid[curr.x][curr.y]
+			if currSymbol != symbol && currSymbol != ' ' && !present {
+				grid[curr.x][curr.y] = 'X'
+			} else {
+				grid[curr.x][curr.y] = symbol
+			}
+			lastStep = symbol
+		}
 	}
+
+	return grid
 }
 
 func getSymbolForDirection(direction Direction) rune {

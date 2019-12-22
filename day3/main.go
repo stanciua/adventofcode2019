@@ -43,16 +43,17 @@ func main() {
 	// build the initial grid
 	grid := buildInitialGrid(initialGridSize)
 
+	var stepsWire1, stepsWire2 []Coordinate
 	// plot the path for wire 1
-	grid = plotPath(grid, wirePath1)
+	grid, stepsWire1 = plotPath(grid, wirePath1)
 	// plot the path for wire 2
-	grid = plotPath(grid, wirePath2)
+	grid, stepsWire2 = plotPath(grid, wirePath2)
 	// displayGrid(grid)
 	// part 1 solution
 	fmt.Println("The result to 1st part is: ", part1(grid))
 
 	// part 2 solution
-	fmt.Println("The result to 2nd part is: ", part2(grid))
+	fmt.Println("The result to 2nd part is: ", part2(grid, stepsWire1, stepsWire2))
 }
 
 func part1(grid [][]rune) int {
@@ -68,8 +69,35 @@ func part1(grid [][]rune) int {
 	return getManhattanDistanceToClosestPoint(getGridOrigin(grid), intersections)
 }
 
-func part2(grid [][]rune) int {
-	return -1
+func part2(grid [][]rune, stepsWire1, stepsWire2 []Coordinate) int {
+	noSteps1 := 0
+	noSteps2 := 0
+	seenIntersections1 := make(map[Coordinate]int)
+	seenIntersections2 := make(map[Coordinate]int)
+
+	for _, e := range stepsWire1 {
+		noSteps1++
+		if grid[e.x][e.y] == 'X' {
+			seenIntersections1[e] = noSteps1
+		}
+	}
+	for _, e := range stepsWire2 {
+		noSteps2++
+		if grid[e.x][e.y] == 'X' {
+			seenIntersections2[e] = noSteps2
+		}
+	}
+
+	// now enumerate each wire intersection and check the minimum number of steps
+	// for the sum of the two wires path
+	min := int(^uint(0) >> 1)
+	for k, v := range seenIntersections1 {
+		if v2, present := seenIntersections2[k]; present && (v+v2 < min) {
+			min = v + v2
+		}
+	}
+
+	return min
 }
 
 type Direction int
@@ -201,8 +229,9 @@ type void struct{}
 
 var member void
 
-func plotPath(grid [][]rune, path []string) [][]rune {
-	positions := make(map[Coordinate]void)
+func plotPath(grid [][]rune, path []string) ([][]rune, []Coordinate) {
+	var positions []Coordinate
+	seenPositions := make(map[Coordinate]void)
 
 	origin := getGridOrigin(grid)
 	// get the direction for the first step
@@ -245,14 +274,22 @@ func plotPath(grid [][]rune, path []string) [][]rune {
 				grid = resizeGrid(grid)
 				orig := getGridOrigin(grid)
 				positions = updatePositionsWithNewOrigin(positions, origin, orig)
+				for k := range seenPositions {
+					delete(seenPositions, k)
+				}
+				for _, e := range positions {
+					seenPositions[e] = member
+				}
+				curr = Coordinate{x: orig.x + originOffset.x, y: orig.y + originOffset.y}
 				curr = Coordinate{x: orig.x + originOffset.x, y: orig.y + originOffset.y}
 				// the new origin will be set
 				origin = orig
 			}
 
 			curr = Coordinate{curr.x + offset.x, curr.y + offset.y}
-			_, present := positions[curr]
-			positions[curr] = member
+			_, present := seenPositions[curr]
+			seenPositions[curr] = member
+			positions = append(positions, curr)
 			currSymbol := grid[curr.x][curr.y]
 			if currSymbol != symbol && currSymbol != ' ' && !present {
 				grid[curr.x][curr.y] = 'X'
@@ -263,13 +300,13 @@ func plotPath(grid [][]rune, path []string) [][]rune {
 		}
 	}
 
-	return grid
+	return grid, positions
 }
 
-func updatePositionsWithNewOrigin(positions map[Coordinate]void, oldOrigin Coordinate, newOrigin Coordinate) map[Coordinate]void {
-	newPositions := make(map[Coordinate]void)
-	for k, v := range positions {
-		newPositions[Coordinate{x: newOrigin.x + (k.x - oldOrigin.x), y: newOrigin.y + (k.y - oldOrigin.y)}] = v
+func updatePositionsWithNewOrigin(positions []Coordinate, oldOrigin Coordinate, newOrigin Coordinate) []Coordinate {
+	var newPositions []Coordinate
+	for _, v := range positions {
+		newPositions = append(newPositions, Coordinate{x: newOrigin.x + (v.x - oldOrigin.x), y: newOrigin.y + (v.y - oldOrigin.y)})
 	}
 
 	return newPositions

@@ -47,7 +47,7 @@ func main() {
 	grid = plotPath(grid, wirePath1)
 	// plot the path for wire 2
 	grid = plotPath(grid, wirePath2)
-	displayGrid(grid)
+	// displayGrid(grid)
 	// part 1 solution
 	fmt.Println("The result to 1st part is: ", part1(grid))
 
@@ -244,6 +244,7 @@ func plotPath(grid [][]rune, path []string) [][]rune {
 				originOffset := Coordinate{x: curr.x - origin.x, y: curr.y - origin.y}
 				grid = resizeGrid(grid)
 				orig := getGridOrigin(grid)
+				positions = updatePositionsWithNewOrigin(positions, origin, orig)
 				curr = Coordinate{x: orig.x + originOffset.x, y: orig.y + originOffset.y}
 				// the new origin will be set
 				origin = orig
@@ -263,6 +264,15 @@ func plotPath(grid [][]rune, path []string) [][]rune {
 	}
 
 	return grid
+}
+
+func updatePositionsWithNewOrigin(positions map[Coordinate]void, oldOrigin Coordinate, newOrigin Coordinate) map[Coordinate]void {
+	newPositions := make(map[Coordinate]void)
+	for k, v := range positions {
+		newPositions[Coordinate{x: newOrigin.x + (k.x - oldOrigin.x), y: newOrigin.y + (k.y - oldOrigin.y)}] = v
+	}
+
+	return newPositions
 }
 
 func getSymbolForDirection(direction Direction) rune {

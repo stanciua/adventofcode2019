@@ -48,10 +48,8 @@ func main() {
 	grid, stepsWire1 = plotPath(grid, wirePath1)
 	// plot the path for wire 2
 	grid, stepsWire2 = plotPath(grid, wirePath2)
-	// displayGrid(grid)
 	// part 1 solution
 	fmt.Println("The result to 1st part is: ", part1(grid))
-
 	// part 2 solution
 	fmt.Println("The result to 2nd part is: ", part2(grid, stepsWire1, stepsWire2))
 }
@@ -229,13 +227,20 @@ type void struct{}
 
 var member void
 
+// this function is responsible of plotting the path of each our onto the grid,
+// and also for returning the trail of each wire path throug the grid
 func plotPath(grid [][]rune, path []string) ([][]rune, []Coordinate) {
+	// stores the steps taken by this wire, we will use this later when finding
+	// out which intersection is reached by lowest number of steps
 	var positions []Coordinate
+	// stores the steps taken by this wire, we use this for searching if a square
+	// of the grid has been seen or not
 	seenPositions := make(map[Coordinate]void)
 
 	origin := getGridOrigin(grid)
 	// get the direction for the first step
 	direction := directionFromString(path[0][:1])
+	// we need to know the last step in order to know when to use '+'
 	lastStep := getSymbolForDirection(direction)
 	grid[origin.x][origin.y] = 'o'
 	curr := origin
@@ -272,18 +277,18 @@ func plotPath(grid [][]rune, path []string) ([][]rune, []Coordinate) {
 				curr.y+offset.y < 0 {
 				originOffset := Coordinate{x: curr.x - origin.x, y: curr.y - origin.y}
 				grid = resizeGrid(grid)
-				orig := getGridOrigin(grid)
-				positions = updatePositionsWithNewOrigin(positions, origin, orig)
+				newOrigin := getGridOrigin(grid)
+				positions = updatePositionsWithNewOrigin(positions, origin, newOrigin)
 				for k := range seenPositions {
 					delete(seenPositions, k)
 				}
 				for _, e := range positions {
 					seenPositions[e] = member
 				}
-				curr = Coordinate{x: orig.x + originOffset.x, y: orig.y + originOffset.y}
-				curr = Coordinate{x: orig.x + originOffset.x, y: orig.y + originOffset.y}
+				curr = Coordinate{x: newOrigin.x + originOffset.x, y: newOrigin.y + originOffset.y}
+				curr = Coordinate{x: newOrigin.x + originOffset.x, y: newOrigin.y + originOffset.y}
 				// the new origin will be set
-				origin = orig
+				origin = newOrigin
 			}
 
 			curr = Coordinate{curr.x + offset.x, curr.y + offset.y}

@@ -66,10 +66,6 @@ func getNumberDigits(number int) []int {
 	return digits
 }
 
-func twoAdjacentDigitsAreTheSame(digits []int) bool {
-	return digits[0] == digits[1] || digits[1] == digits[2] || digits[2] == digits[3] || digits[3] == digits[4] || digits[4] == digits[5]
-}
-
 func doDigitsIncreaseOrStayTheSame(digits []int) bool {
 	return digits[0] <= digits[1] && digits[1] <= digits[2] && digits[2] <= digits[3] && digits[3] <= digits[4] && digits[4] <= digits[5]
 }
@@ -90,23 +86,21 @@ func part2(rmin, rmax int) int {
 	noOfPasswords := 0
 	for i := rmin; i <= rmax; i++ {
 		digits := getNumberDigits(i)
-		if i == 136888 {
-			fmt.Println(i)
-		}
 		startPos, present := twoAdjacentDigitsStartingPos(digits)
 		if !present || !doDigitsIncreaseOrStayTheSame(digits) {
 			continue
 		}
 
+		// see if we can find the double digits in another larger group, get its
+		// start position, its length and a flag if it's part of a larger group
 		pos, groupLen, found := moreThenTwoAdjacentDigitsPosition(digits, startPos)
 
-		// check the left side and right side
-		if found {
-			foundLeft := checkSubsliceForTwoAdjacentDigits(digits[0:pos])
-			foundRight := checkSubsliceForTwoAdjacentDigits(digits[startPos+groupLen : len(digits)])
-			if foundLeft || foundRight {
-				noOfPasswords++
-			}
+		// now if we are done with larger group check, we need to look for other
+		// valid double digits values that may be valid
+		foundLeft := checkSubsliceForTwoAdjacentDigits(digits[0:pos])
+		foundRight := checkSubsliceForTwoAdjacentDigits(digits[startPos+groupLen : len(digits)])
+		if foundLeft || foundRight || !found {
+			noOfPasswords++
 		}
 
 	}
@@ -131,37 +125,35 @@ func twoAdjacentDigitsStartingPos(digits []int) (int, bool) {
 
 func moreThenTwoAdjacentDigitsPosition(digits []int, startPos int) (int, int, bool) {
 	// look on the left side
-	newStartPos := 0
-	lenAdjacent := 2
-	foundMoreThanTwoDigits := false
-	for i := startPos - 1; i >= 0; i-- {
-		if digits[startPos] == digits[i] {
-			newStartPos = i
-			lenAdjacent++
-			foundMoreThanTwoDigits = true
-		}
-	}
-	// look on the right side
-	for i := startPos + 2; i < len(digits); i++ {
-		if digits[startPos] == digits[i] {
-			if !foundMoreThanTwoDigits {
-				lenAdjacent++
-				newStartPos = startPos
-			} else {
-				lenAdjacent++
-			}
+	newStartPos := startPos
+	newEndPos := startPos
+	for i, j := startPos, startPos-1; i > 0 && j >= 0; i, j = i-1, j-1 {
+		if digits[i] == digits[j] {
+			newStartPos = j
+		} else {
+			break
 		}
 	}
 
-	return newStartPos, lenAdjacent, foundMoreThanTwoDigits
+	// look on the right side
+	length := len(digits)
+	for i, j := startPos, startPos+1; i < length && j < length; i, j = i+1, j+1 {
+		if digits[i] == digits[j] {
+			newEndPos = j
+		} else {
+			break
+		}
+	}
+
+	length = newEndPos - newStartPos + 1
+	return newStartPos, length, length != 2
 }
 
 func checkSubsliceForTwoAdjacentDigits(digits []int) bool {
 	count := 0
-	if len(digits) >= 2 {
-		i := 0
-		j := i + 1
-		for i < len(digits) && j < len(digits)-1 {
+	length := len(digits)
+	if length >= 2 {
+		for i, j := 0, 1; i < length && j < length; i, j = i+1, j+1 {
 			if digits[i] == digits[j] {
 				count++
 			}

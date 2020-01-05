@@ -237,9 +237,11 @@ func part1(grid [][]int) (int, Point) {
 
 func part2(grid [][]int, monitoringStation Point) int {
 	count := 1
+	result := 0
 	asteroids := getListOfAsteroids(grid)
 	numberOfAsteroids := len(asteroids)
 	var asteroidsReached []Point
+outerloop:
 	for numberOfAsteroids > 1 {
 		for _, quadrant := range []Quadrant{One, Four, Three, Two} {
 			points := getAsteroidsForQuadrant(quadrant, monitoringStation, asteroids)
@@ -247,7 +249,8 @@ func part2(grid [][]int, monitoringStation Point) int {
 			for _, p := range asteroidsReached {
 				grid[p.x][p.y] = 0
 				if count == 200 {
-					return p.y*100 + p.x
+					result = p.y*100 + p.x
+					break outerloop
 				}
 				count++
 				numberOfAsteroids--
@@ -255,7 +258,8 @@ func part2(grid [][]int, monitoringStation Point) int {
 			asteroids = getListOfAsteroids(grid)
 		}
 	}
-	return -1
+
+	return result
 }
 
 func main() {

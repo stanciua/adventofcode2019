@@ -270,50 +270,57 @@ func part2(input []int64) {
 	}
 }
 
-func (r *Robot) getOutput() int64 {
-	for !r.brain.outputReady {
+func (r *Robot) getOutput() (output int64, done bool) {
+	// execute instruction as long as we don't have any output or the robot is done
+	for true {
 		r.brain.currInstruction = r.brain.decodeCurrentInstruction()
 		r.brain.executeCurrentInstruction()
+		if r.brain.hasFinished() {
+			done = true
+			break
+		}
+		if r.brain.outputReady {
+			output = r.brain.output
+			r.brain.outputReady = false
+			done = false
+			break
+		}
 	}
 
-	return r.brain.output
+	return output, done
 }
+
 func (r *Robot) paint() {
 	// we need to distinguish between output paint color and next direction turn
-	paintColorFlg := true
-	nextTurnFlg := false
 	paintColor := Black
 	nextTurn := DirLeft
-	for !r.brain.hasFinished() {
+	for true {
 		if v, ok := r.region[r.currPosition]; v == Black || !ok {
 			r.brain.input = []int64{0}
 		} else {
 			r.brain.input = []int64{1}
 		}
-		r.brain.currInstruction = r.brain.decodeCurrentInstruction()
-		r.brain.executeCurrentInstruction()
-		if paintColorFlg && r.brain.outputReady {
-			r.brain.outputReady = false
-			if r.brain.output == 1 {
-				paintColor = White
-			} else {
-				paintColor = Black
-			}
-			paintColorFlg = false
-			nextTurnFlg = true
-			continue
-		} else if nextTurnFlg && r.brain.outputReady {
-			r.brain.outputReady = false
-			if r.brain.output == 1 {
-				nextTurn = DirRight
-			} else {
-				nextTurn = DirLeft
-			}
-			paintColorFlg = true
-			nextTurnFlg = false
-		} else {
-			continue
+		output, done := r.getOutput()
+		if done {
+			return
 		}
+		if output == 1 {
+			paintColor = White
+		} else {
+			paintColor = Black
+		}
+
+		output, done = r.getOutput()
+		if done {
+			return
+		}
+
+		if output == 1 {
+			nextTurn = DirRight
+		} else {
+			nextTurn = DirLeft
+		}
+
 		// paint the current position
 		r.region[r.currPosition] = paintColor
 		// get the new current position and direction based on the output from the robot

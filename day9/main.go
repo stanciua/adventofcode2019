@@ -161,7 +161,7 @@ func (vm *VM) load(address int64) int64 {
 }
 
 func (vm *VM) store(address int64, mode ParameterMode, val int64) {
-	for address > int64(len(vm.memory)-1) {
+	for address > int64(len(vm.memory)-1) || address+vm.relativeBase > int64(len(vm.memory)-1) {
 		vm.doubleMemory()
 	}
 

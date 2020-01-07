@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -240,26 +241,26 @@ func part2(input []int64) {
 	robot.region[robot.currPosition] = White
 	robot.currDirection = DirUp
 	robot.paint()
-	grid := make([][]Symbol, 256)
-	for i := 0; i < 256; i++ {
-		grid[i] = make([]Symbol, 256)
-		for j := 0; j < 256; j++ {
-			grid[i][j] = Black
+	xMin, yMin := math.MaxInt32, math.MaxInt32
+	xMax, yMax := math.MinInt32, math.MinInt32
+	for k := range robot.region {
+		if k.x < xMin {
+			xMin = k.x
+		}
+		if k.y < yMin {
+			yMin = k.y
+		}
+		if k.x > xMax {
+			xMax = k.x
+		}
+		if k.y > yMax {
+			yMax = k.y
 		}
 	}
 
-	curr := Position{x: len(grid) / 2, y: len(grid) / 2}
-	for k, v := range robot.region {
-		grid[curr.x+k.x][curr.y+k.y] = v
-	}
-
-	displayGrid(grid)
-}
-
-func displayGrid(grid [][]Symbol) {
-	for i := 0; i < 256; i++ {
-		for j := 0; j < 256; j++ {
-			if grid[i][j] == Black {
+	for i := xMin; i <= xMax; i++ {
+		for j := yMin; j <= yMax; j++ {
+			if v, ok := robot.region[Position{x: i, y: j}]; !ok || v == Black {
 				fmt.Print(".")
 			} else {
 				fmt.Print("#")
@@ -267,9 +268,16 @@ func displayGrid(grid [][]Symbol) {
 		}
 		fmt.Println()
 	}
-
 }
 
+func (r *Robot) getOutput() int64 {
+	for !r.brain.outputReady {
+		r.brain.currInstruction = r.brain.decodeCurrentInstruction()
+		r.brain.executeCurrentInstruction()
+	}
+
+	return r.brain.output
+}
 func (r *Robot) paint() {
 	// we need to distinguish between output paint color and next direction turn
 	paintColorFlg := true
@@ -308,7 +316,7 @@ func (r *Robot) paint() {
 		}
 		// paint the current position
 		r.region[r.currPosition] = paintColor
-		// get the new current position based on the output from the robot
+		// get the new current position and direction based on the output from the robot
 		r.currPosition = r.getNextPosition(nextTurn)
 		r.currDirection = r.getNextDirection(nextTurn)
 	}

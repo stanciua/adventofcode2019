@@ -431,7 +431,7 @@ func main() {
 
 	}
 
-	// fmt.Println("The result to 1st part is: ", part1(program))
+	fmt.Println("The result to 1st part is: ", part1(program))
 
 	// part 2 solution
 	fmt.Println("The result to 2nd part is: ")

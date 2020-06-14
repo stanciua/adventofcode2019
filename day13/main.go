@@ -14,19 +14,17 @@ type Position struct {
 	y int64
 }
 
-type Symbol rune
-
 const (
-	Empty            Symbol = '0'
-	Wall                    = '1'
-	Block                   = '2'
-	HorizontalPaddle        = '3'
-	Ball                    = '4'
+	Empty            int64 = 0
+	Wall                   = 1
+	Block                  = 2
+	HorizontalPaddle       = 3
+	Ball                   = 4
 )
 
 type Cabinet struct {
 	vm                    *VM
-	screen                map[Position]Symbol
+	screen                map[Position]int64
 	currentPaddlePosition Position
 	currentBallPosition   Position
 	currentScore          int64
@@ -219,7 +217,7 @@ func (vm *VM) executeCurrentInstruction() {
 }
 
 func part1(input []int64) int {
-	cabinet := Cabinet{vm: NewVM(), screen: make(map[Position](Symbol))}
+	cabinet := Cabinet{vm: NewVM(), screen: make(map[Position](int64))}
 	// load the program into the cabinet memory
 	cabinet.vm.loadProgram(input)
 	cabinet.run()
@@ -233,7 +231,7 @@ func part1(input []int64) int {
 }
 
 func part2(input []int64) int64 {
-	cabinet := Cabinet{vm: NewVM(), screen: make(map[Position](Symbol))}
+	cabinet := Cabinet{vm: NewVM(), screen: make(map[Position](int64))}
 	// load the program into the cabinet memory
 	cabinet.vm.loadProgram(input)
 	// insert coin
@@ -301,28 +299,9 @@ func (c *Cabinet) run() {
 		if y == -1 && x == 0 {
 			c.currentScore = id
 		} else {
-			c.screen[Position{x: x, y: y}] = symbolFromID(id)
+			c.screen[Position{x: x, y: y}] = id
 		}
 	}
-}
-
-func symbolFromID(id int64) Symbol {
-	var symbol Symbol
-	switch id {
-	case 0:
-		symbol = Empty
-	case 1:
-		symbol = Wall
-	case 2:
-		symbol = Block
-	case 3:
-		symbol = HorizontalPaddle
-	case 4:
-		symbol = Ball
-	default:
-		panic("Invalid id value")
-	}
-	return symbol
 }
 
 func main() {

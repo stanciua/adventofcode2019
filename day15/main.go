@@ -288,27 +288,22 @@ func (droid *Droid) findOxygenSystem(source Position) int {
 		}
 		for k := North; k <= East; k++ {
 			nextPosition := Position{x: position.x + DIRECTIONS[k].x, y: position.y + DIRECTIONS[k].y}
+			fmt.Println(nextPosition)
 			if _, ok := discovered[nextPosition]; !ok {
 				output, _ := droid.getOutput(k)
 				if output == Wall {
 					droid.area[nextPosition] = WallSymbol
 					discovered[nextPosition] = true
-				}
-				if output == Move {
+				} else if output == Move {
 					discovered[nextPosition] = true
 					queue = append(queue, nextPosition)
 					droid.area[source] = KnownPosition
 					droid.area[nextPosition] = DroidSymbol
-					// revert the move of the droid
-					droid.getOutput(REVERSE[k])
-				}
-				if output == Oxygen {
+				} else if output == Oxygen {
 					discovered[nextPosition] = true
 					queue = append(queue, nextPosition)
 					droid.area[source] = KnownPosition
 					droid.area[nextPosition] = OxygenSymbol
-					// revert the move of the droid
-					droid.getOutput(REVERSE[k])
 				}
 			}
 		}

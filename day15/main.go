@@ -254,40 +254,202 @@ func part1(input []int64) int {
 	discovered := make(map[Position]bool)
 	oxygenPos := Position{y: 0, x: 0}
 	droid.buildMap(startPosition, discovered, &oxygenPos)
-	fmt.Println(oxygenPos)
-	// fmt.Println(droid.area)
-	// fmt.Println(discovered)
-	droid.area[startPosition] = StartSymbol
-	droid.plotMap()
-	return 0
+	droid.area[startPosition] = KnownPosition
+	droid.area[oxygenPos] = KnownPosition
+	return droid.dijkstra(startPosition, oxygenPos)
 }
 
-func part2(input []int64) int64 {
-	return -1
+func part2(input []int64) int {
+	area := make(map[Position]rune)
+	droid := Droid{vm: NewVM(), area: area}
+	// load the program into the cabinet memory
+	droid.vm.loadProgram(input)
+	startPosition := Position{y: 0, x: 0}
+	discovered := make(map[Position]bool)
+	oxygenPos := Position{y: 0, x: 0}
+	droid.buildMap(startPosition, discovered, &oxygenPos)
+	droid.area[startPosition] = KnownPosition
+	droid.area[oxygenPos] = KnownPosition
+	minutes := droid.fillWithOxygen(oxygenPos)
+	// droid.plotMap()
+	return minutes
+}
+
+func getMinValue(queue map[Position]bool, dist map[Position]int) (Position, int) {
+	min := math.MaxInt32
+	pos := Position{y: 0, x: 0}
+	for p, d := range dist {
+		if d < min && queue[p] {
+			min = d
+			pos = p
+		}
+	}
+
+	return pos, min
 }
 
 func (droid *Droid) dijkstra(source Position, destination Position) int {
-	steps := 0
 	dist := make(map[Position]int)
-	prev := make(map[Position]int)
-	queue := make([]Position, 0)
+	prev := make([]Position, 0)
+	queue := make(map[Position]bool)
 
 	for pos, sym := range droid.area {
-		if sym != OxygenSymbol && sym != StartSymbol && sym != KnownPosition {
+		if sym != KnownPosition {
 			continue
 		}
 
 		dist[pos] = math.MaxInt32
-		queue = append(queue, pos)
+		queue[pos] = true
 	}
 
 	dist[source] = 0
 
 	for len(queue) > 0 {
+		// get u with min dist[u]
+		minPos, minDist := getMinValue(queue, dist)
 
+		if destination == minPos {
+			return minDist
+		}
+		delete(queue, minPos)
+
+		neighbors := droid.cellNeighbors(minPos)
+
+		for _, n := range neighbors {
+			if _, ok := queue[n]; !ok {
+				continue
+			}
+
+			alt := minDist + 1
+			if alt < dist[n] && minDist != math.MaxInt32 {
+				dist[n] = alt
+				prev = append(prev, minPos)
+			}
+		}
 	}
 
-	return steps
+	return 0
+}
+
+//  1  procedure BFS(G, root) is
+//  2      let Q be a queue
+//  3      label root as explored
+//  4      Q.enqueue(root)
+//  5      while Q is not empty do
+//  6          v := Q.dequeue()
+//  7          if v is the goal then
+//  8              return v
+//  9          for all edges from v to w in G.adjacentEdges(v) do
+// 10              if w is not labeled as explored then
+// 11                  label w as explored
+// 12                  Q.enqueue(w)
+
+// func (droid *Droid) bfs(source Position) int {
+// 	var q = make([]Position, 0)
+// 	explored := make(map[Position]bool)
+//
+// 	droid.area[source] = OxygenSymbol
+// 	explored[source] = true
+//
+// 	q = append(q, source)
+//
+// 	minutes := 0
+// 	for len(q) > 0 {
+// 		minutes++
+// 		v := q[0]
+// 		q = q[1:]
+//
+// 		if droid.isRegionFullOfOxygen() {
+// 			return minutes
+// 		}
+//
+// 		neighbors := droid.cellNeighbors(v)
+//
+// 		for _, n := range neighbors {
+// 			if !explored[n] {
+// 				explored[n] = true
+// 				droid.area[n] = OxygenSymbol
+// 				q = append(q, n)
+// 			}
+// 		}
+//
+// 	}
+//
+// 	return 0
+// }
+
+func (droid *Droid) fillWithOxygen(source Position) int {
+	droid.area[source] = OxygenSymbol
+
+	// count the number of KnownPositions
+	count := 0
+	for _, sym := range droid.area {
+		if sym == KnownPosition {
+			count++
+		}
+	}
+
+	explored := make(map[Position]bool)
+	minutes := 0
+	for count > 0 {
+		openLocations := make(map[Position]rune)
+		for pos, sym := range droid.area {
+			if sym == OxygenSymbol {
+				for _, n := range droid.cellNeighbors(pos) {
+					openLocations[n] = KnownPosition
+				}
+			}
+		}
+
+		// now fill every open location we found
+		for pos, _ := range openLocations {
+			droid.area[pos] = OxygenSymbol
+			explored[pos] = true
+			count--
+		}
+		minutes++
+	}
+
+	return minutes
+}
+
+func (droid *Droid) isRegionFullOfOxygen() bool {
+	count := 0
+	for _, sym := range droid.area {
+		if sym == KnownPosition {
+			count++
+		}
+	}
+
+	return count == 0
+}
+func (droid *Droid) cellNeighbors(pos Position) []Position {
+	neighbors := make([]Position, 0)
+
+	// check up
+	p := Position{y: pos.y - 1, x: pos.x}
+	if droid.area[p] == KnownPosition {
+		neighbors = append(neighbors, p)
+	}
+	// check down
+	p = Position{y: pos.y + 1, x: pos.x}
+	if droid.area[p] == KnownPosition {
+		neighbors = append(neighbors, p)
+	}
+
+	// check left
+	p = Position{y: pos.y, x: pos.x - 1}
+	if droid.area[p] == KnownPosition {
+		neighbors = append(neighbors, p)
+	}
+
+	// check right
+	p = Position{y: pos.y, x: pos.x + 1}
+	if droid.area[p] == KnownPosition {
+		neighbors = append(neighbors, p)
+	}
+
+	return neighbors
 
 }
 func (droid *Droid) droidStatusReply(move int64) int64 {
@@ -427,7 +589,7 @@ func main() {
 
 	}
 	// part 1 solution
-	fmt.Println("The result to 1st part is: ", part1(program))
+	// fmt.Println("The result to 1st part is: ", part1(program))
 
 	// part 2 solution
 	fmt.Println("The result to 2nd part is: ", part2(program))

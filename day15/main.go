@@ -4,19 +4,25 @@ import (
 	"bufio"
 	"fmt"
 	"log"
-	"math"
 	"os"
 	"strconv"
 	"strings"
 )
 
 type Position struct {
-	x int64
 	y int64
+	x int64
+}
+
+type Neighbor struct {
+	pos    Position
+	symbol rune
+	dir    int64
 }
 
 const (
-	Wall   int64 = 0
+	NoCmd  int64 = -1
+	Wall         = 0
 	Move         = 1
 	Oxygen       = 2
 )
@@ -36,11 +42,15 @@ const (
 	East        = 4
 )
 
-var (
-	DIRECTIONS = [...]Position{Position{x: math.MaxInt64, y: math.MaxInt64},
-		Position{x: -1, y: 0}, Position{x: 1, y: 0}, Position{x: 0, y: -1}, Position{x: 0, y: 1}}
-	REVERSE = [...]int64{-1, South, North, East, West}
+const (
+	MAX_Y = 50
+	MAX_X = 50
 )
+
+var REVERSE_COMMAND = []int64{2, 1, 4, 3}
+
+var COORDINATE_DIRECTIONS = []Position{{y: -1, x: 0}, {y: 1, x: 0}, {y: 0, x: -1}, {y: 0, x: 1}}
+var REVERSE_COORDINATE_DIRECTIONS = []Position{{y: 1, x: 0}, {y: -1, x: 0}, {y: 0, x: 1}, {y: 0, x: -1}}
 
 type Droid struct {
 	vm      *VM
@@ -242,9 +252,21 @@ func part1(input []int64) int {
 	droid := Droid{vm: NewVM(), area: area, visited: visited, path: path}
 	// load the program into the cabinet memory
 	droid.vm.loadProgram(input)
-	startPosition := Position{x: 0, y: 0}
-	droid.area[startPosition] = DroidSymbol
-	return droid.findOxygenSystem(startPosition)
+	startPosition := Position{y: 0, x: 0}
+	discovered := make(map[Position]bool)
+	// // initialize the area to spaces
+	// for i := -25; i < 25; i++ {
+	// 	for j := -25; j < 25; j++ {
+	// 		droid.area[Position{y: int64(i), x: int64(j)}] = UnexploredPosition
+	// 	}
+	// }
+	pos := droid.findOxygenSystem(startPosition, discovered)
+	fmt.Println(pos)
+	// fmt.Println(droid.area)
+	// fmt.Println(discovered)
+	droid.area[startPosition] = 'S'
+	droid.plotMap()
+	return 0
 }
 
 func part2(input []int64) int64 {
@@ -275,40 +297,157 @@ func (droid *Droid) getOutput(move int64) (output int64, done bool) {
 	return output, done
 }
 
-func (droid *Droid) findOxygenSystem(source Position) int {
-	queue := make([]Position, 0)
-	discovered := make(map[Position]bool)
-	discovered[source] = true
-	queue = append(queue, source)
-	for len(queue) > 0 {
-		position := queue[0]
-		queue = queue[1:]
-		if droid.area[position] == OxygenSymbol {
-			return 0
-		}
-		for k := North; k <= East; k++ {
-			nextPosition := Position{x: position.x + DIRECTIONS[k].x, y: position.y + DIRECTIONS[k].y}
-			fmt.Println(nextPosition)
-			if _, ok := discovered[nextPosition]; !ok {
-				output, _ := droid.getOutput(k)
-				if output == Wall {
-					droid.area[nextPosition] = WallSymbol
-					discovered[nextPosition] = true
-				} else if output == Move {
-					discovered[nextPosition] = true
-					queue = append(queue, nextPosition)
-					droid.area[source] = KnownPosition
-					droid.area[nextPosition] = DroidSymbol
-				} else if output == Oxygen {
-					discovered[nextPosition] = true
-					queue = append(queue, nextPosition)
-					droid.area[source] = KnownPosition
-					droid.area[nextPosition] = OxygenSymbol
-				}
-			}
+func getNextPositionAfterCommand(pos Position, command int64) Position {
+	dirPos := COORDINATE_DIRECTIONS[command-1]
+	return Position{y: pos.y + dirPos.y, x: pos.x + dirPos.x}
+}
+
+func (droid *Droid) backtrackToPositionIfDeadEnd(pos Position) (int64, Position, bool) {
+	count := 0
+	backtrackPos := Position{y: 0, x: 0}
+	dir := North
+	for d := North; d <= East; d++ {
+		currPos := getNextPositionAfterCommand(pos, d)
+		if droid.area[currPos] == WallSymbol {
+			count++
+		} else if droid.area[currPos] == KnownPosition {
+			dir = d
+			backtrackPos = currPos
 		}
 	}
-	return -1
+
+	// dead end if count is 3
+	if count == 3 {
+		return dir, backtrackPos, true
+	}
+	return dir, backtrackPos, false
+}
+
+func (droid *Droid) positionToMovementCommand(pos Position) int {
+	movementCommand := 0
+	if pos == (Position{y: -1, x: 0}) {
+		movementCommand = 1
+	} else if pos == (Position{y: 1, x: 0}) {
+		movementCommand = 2
+	} else if pos == (Position{y: 0, x: -1}) {
+		movementCommand = 3
+	} else {
+		movementCommand = 4
+	}
+
+	return movementCommand
+}
+
+func (droid *Droid) findOxygenSystem(source Position, discovered map[Position]bool) Position {
+	// droid.area[source] = DroidSymbol
+	discovered[source] = true
+
+	neighbors := droid.findNeighbors(source)
+
+	for _, neighbor := range neighbors {
+		if neighbor.symbol == OxygenSymbol {
+			fmt.Println("FOUND THE Oxygen")
+			// droid.area[neighbor.pos] = OxygenSymbol
+			fmt.Println(neighbor.pos)
+			// return neighbor.pos
+		} else if neighbor.symbol == WallSymbol {
+			// mark all walls as already discovered
+			discovered[neighbor.pos] = true
+		}
+		droid.area[neighbor.pos] = neighbor.symbol
+	}
+
+	// now visit all the cells that have not been visited
+	for _, neighbor := range neighbors {
+		if discovered[neighbor.pos] {
+			continue
+		}
+
+		// we also need to move the droid in that direction
+		output, _ := droid.getOutput(neighbor.dir)
+
+		if output == 1 {
+		}
+
+		// before moving the droid, mark the cell as known location
+		droid.area[source] = KnownPosition
+		_ = droid.findOxygenSystem(neighbor.pos, discovered)
+		// if we need to go back, we need to tell the droid to backtrack
+		output, _ = droid.getOutput(REVERSE_COMMAND[neighbor.dir-1])
+		if output == 1 {
+		}
+		// return pos
+	}
+	// droid.area[source] = OxygenSymbol
+	// count := 0
+	// countTotal := 0
+	// for pos, symbol := range droid.area {
+	// 	if symbol != KnownPosition {
+	// 		continue
+	// 	}
+	// 	count++
+	// 	countTotal++
+	//
+	// 	neighbors := droid.findNeighbors(pos)
+	// 	for _, n := range neighbors {
+	// 		if n.symbol == UnexploredPosition {
+	// 			count--
+	// 			break
+	// 		}
+	// 	}
+	// }
+	// fmt.Println("count: ", count)
+	// fmt.Println("countTotal: ", count)
+	return source
+}
+
+func (droid *Droid) plotMap() {
+	var mapDisplay [MAX_Y][MAX_X]rune
+	for i := 0; i < MAX_Y; i++ {
+		for j := 0; j < MAX_X; j++ {
+			mapDisplay[i][j] = ' '
+		}
+	}
+
+	for pos, symbol := range droid.area {
+		mapDisplay[MAX_Y/2+pos.y][MAX_X/2+pos.x] = symbol
+	}
+
+	mapDisplay[25+14][25-15] = OxygenSymbol
+	for i := 0; i < MAX_Y; i++ {
+		for j := 0; j < MAX_X; j++ {
+			fmt.Print(string(mapDisplay[i][j]))
+		}
+		fmt.Println()
+	}
+}
+
+func (droid *Droid) findNeighbors(pos Position) []Neighbor {
+	neighbors := make([]Neighbor, 4)
+
+	for d := North; d <= East; d++ {
+		cPos := COORDINATE_DIRECTIONS[d-1]
+		dPos := Position{y: pos.y + cPos.y, x: pos.x + cPos.x}
+		neighbors[d-1].pos = dPos
+		neighbors[d-1].dir = d
+		// pass the coordinate to the robot and check their response
+		output, _ := droid.getOutput(d)
+
+		if output == Wall {
+			neighbors[d-1].symbol = WallSymbol
+		} else if output == Move {
+			neighbors[d-1].symbol = KnownPosition
+			// go back to previous position
+			output, _ = droid.getOutput(REVERSE_COMMAND[d-1])
+		} else {
+			// found the oxygen system
+			neighbors[d-1].symbol = OxygenSymbol
+			// go back to previous position
+			output, _ = droid.getOutput(REVERSE_COMMAND[d-1])
+		}
+	}
+
+	return neighbors
 }
 
 func main() {

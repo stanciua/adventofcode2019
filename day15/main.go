@@ -22,37 +22,27 @@ type Neighbor struct {
 }
 
 const (
-	NoCmd  int64 = -1
-	Wall         = 0
-	Move         = 1
-	Oxygen       = 2
+	Wall   = 0
+	Move   = 1
+	Oxygen = 2
 )
 
 const (
-	DroidSymbol        rune = 'D'
-	WallSymbol              = '#'
-	KnownPosition           = '.'
-	UnexploredPosition      = ' '
-	OxygenSymbol            = 'O'
-	StartSymbol             = 'S'
+	WallSymbol    = '#'
+	KnownPosition = '.'
+	OxygenSymbol  = 'O'
 )
 
 const (
 	North int64 = 1
-	South       = 2
-	West        = 3
-	East        = 4
-)
-
-const (
-	MAX_Y = 50
-	MAX_X = 50
+	South int64 = 2
+	West  int64 = 3
+	East  int64 = 4
 )
 
 var REVERSE_COMMAND = []int64{2, 1, 4, 3}
 
-var COORDINATE_DIRECTIONS = []Position{{y: -1, x: 0}, {y: 1, x: 0}, {y: 0, x: -1}, {y: 0, x: 1}}
-var REVERSE_COORDINATE_DIRECTIONS = []Position{{y: 1, x: 0}, {y: -1, x: 0}, {y: 0, x: 1}, {y: 0, x: -1}}
+var DIRECTIONS = []Position{{y: -1, x: 0}, {y: 1, x: 0}, {y: 0, x: -1}, {y: 0, x: 1}}
 
 type Droid struct {
 	vm   *VM
@@ -248,31 +238,29 @@ func (vm *VM) executeCurrentInstruction() {
 func part1(input []int64) int {
 	area := make(map[Position]rune)
 	droid := Droid{vm: NewVM(), area: area}
-	// load the program into the cabinet memory
 	droid.vm.loadProgram(input)
 	startPosition := Position{y: 0, x: 0}
 	discovered := make(map[Position]bool)
 	oxygenPos := Position{y: 0, x: 0}
+	// build the map and find the Oxygen position
 	droid.buildMap(startPosition, discovered, &oxygenPos)
 	droid.area[startPosition] = KnownPosition
 	droid.area[oxygenPos] = KnownPosition
-	return droid.dijkstra(startPosition, oxygenPos)
+	return droid.findMininumNoOfSteps(startPosition, oxygenPos)
 }
 
 func part2(input []int64) int {
 	area := make(map[Position]rune)
 	droid := Droid{vm: NewVM(), area: area}
-	// load the program into the cabinet memory
 	droid.vm.loadProgram(input)
 	startPosition := Position{y: 0, x: 0}
 	discovered := make(map[Position]bool)
 	oxygenPos := Position{y: 0, x: 0}
+	// build the map and find the Oxygen position
 	droid.buildMap(startPosition, discovered, &oxygenPos)
 	droid.area[startPosition] = KnownPosition
 	droid.area[oxygenPos] = KnownPosition
-	minutes := droid.fillWithOxygen(oxygenPos)
-	// droid.plotMap()
-	return minutes
+	return droid.fillWithOxygen(oxygenPos)
 }
 
 func getMinValue(queue map[Position]bool, dist map[Position]int) (Position, int) {
@@ -288,9 +276,8 @@ func getMinValue(queue map[Position]bool, dist map[Position]int) (Position, int)
 	return pos, min
 }
 
-func (droid *Droid) dijkstra(source Position, destination Position) int {
+func (droid *Droid) findMininumNoOfSteps(source Position, destination Position) int {
 	dist := make(map[Position]int)
-	prev := make([]Position, 0)
 	queue := make(map[Position]bool)
 
 	for pos, sym := range droid.area {
@@ -323,60 +310,12 @@ func (droid *Droid) dijkstra(source Position, destination Position) int {
 			alt := minDist + 1
 			if alt < dist[n] && minDist != math.MaxInt32 {
 				dist[n] = alt
-				prev = append(prev, minPos)
 			}
 		}
 	}
 
 	return 0
 }
-
-//  1  procedure BFS(G, root) is
-//  2      let Q be a queue
-//  3      label root as explored
-//  4      Q.enqueue(root)
-//  5      while Q is not empty do
-//  6          v := Q.dequeue()
-//  7          if v is the goal then
-//  8              return v
-//  9          for all edges from v to w in G.adjacentEdges(v) do
-// 10              if w is not labeled as explored then
-// 11                  label w as explored
-// 12                  Q.enqueue(w)
-
-// func (droid *Droid) bfs(source Position) int {
-// 	var q = make([]Position, 0)
-// 	explored := make(map[Position]bool)
-//
-// 	droid.area[source] = OxygenSymbol
-// 	explored[source] = true
-//
-// 	q = append(q, source)
-//
-// 	minutes := 0
-// 	for len(q) > 0 {
-// 		minutes++
-// 		v := q[0]
-// 		q = q[1:]
-//
-// 		if droid.isRegionFullOfOxygen() {
-// 			return minutes
-// 		}
-//
-// 		neighbors := droid.cellNeighbors(v)
-//
-// 		for _, n := range neighbors {
-// 			if !explored[n] {
-// 				explored[n] = true
-// 				droid.area[n] = OxygenSymbol
-// 				q = append(q, n)
-// 			}
-// 		}
-//
-// 	}
-//
-// 	return 0
-// }
 
 func (droid *Droid) fillWithOxygen(source Position) int {
 	droid.area[source] = OxygenSymbol
@@ -402,7 +341,7 @@ func (droid *Droid) fillWithOxygen(source Position) int {
 		}
 
 		// now fill every open location we found
-		for pos, _ := range openLocations {
+		for pos := range openLocations {
 			droid.area[pos] = OxygenSymbol
 			explored[pos] = true
 			count--
@@ -413,16 +352,6 @@ func (droid *Droid) fillWithOxygen(source Position) int {
 	return minutes
 }
 
-func (droid *Droid) isRegionFullOfOxygen() bool {
-	count := 0
-	for _, sym := range droid.area {
-		if sym == KnownPosition {
-			count++
-		}
-	}
-
-	return count == 0
-}
 func (droid *Droid) cellNeighbors(pos Position) []Position {
 	neighbors := make([]Position, 0)
 
@@ -475,7 +404,6 @@ func (droid *Droid) droidStatusReply(move int64) int64 {
 }
 
 func (droid *Droid) buildMap(source Position, discovered map[Position]bool, oxygenPos *Position) {
-	// droid.area[source] = DroidSymbol
 	discovered[source] = true
 
 	neighbors := droid.findNeighbors(source)
@@ -507,31 +435,11 @@ func (droid *Droid) buildMap(source Position, discovered map[Position]bool, oxyg
 	}
 }
 
-func (droid *Droid) plotMap() {
-	var mapDisplay [MAX_Y][MAX_X]rune
-	for i := 0; i < MAX_Y; i++ {
-		for j := 0; j < MAX_X; j++ {
-			mapDisplay[i][j] = ' '
-		}
-	}
-
-	for pos, symbol := range droid.area {
-		mapDisplay[MAX_Y/2+pos.y][MAX_X/2+pos.x] = symbol
-	}
-
-	for i := 0; i < MAX_Y; i++ {
-		for j := 0; j < MAX_X; j++ {
-			fmt.Print(string(mapDisplay[i][j]))
-		}
-		fmt.Println()
-	}
-}
-
 func (droid *Droid) findNeighbors(pos Position) []Neighbor {
 	neighbors := make([]Neighbor, 4)
 
 	for d := North; d <= East; d++ {
-		cPos := COORDINATE_DIRECTIONS[d-1]
+		cPos := DIRECTIONS[d-1]
 		dPos := Position{y: pos.y + cPos.y, x: pos.x + cPos.x}
 		neighbors[d-1].pos = dPos
 		neighbors[d-1].dir = d
@@ -589,7 +497,7 @@ func main() {
 
 	}
 	// part 1 solution
-	// fmt.Println("The result to 1st part is: ", part1(program))
+	fmt.Println("The result to 1st part is: ", part1(program))
 
 	// part 2 solution
 	fmt.Println("The result to 2nd part is: ", part2(program))

@@ -61,13 +61,18 @@ func updateInputSignal(inputDigits []int, precomputedPatterns map[int][]int) {
 	}
 }
 
-func updateInputSignalOptimized(inputDigits []int) {
-	for i := 0; i < len(inputDigits); i++ {
-		sum := 0
-		for _, d := range inputDigits[i:] {
-			sum += d
-		}
-		inputDigits[i] = int(math.Abs(float64(sum % 10)))
+func updateInputSignalOptimized(inputDigits []int, initialInputDigits []int, iteration int) {
+	sum := 0
+	for _, d := range inputDigits {
+		sum += d
+	}
+	prevDigit := inputDigits[0]
+	inputDigits[0] = int(math.Abs(float64(sum % 10)))
+
+	for idx, d := range inputDigits[1:] {
+		sum -= prevDigit
+		prevDigit = d
+		inputDigits[idx+1] = int(math.Abs(float64(sum % 10)))
 	}
 }
 
@@ -95,14 +100,14 @@ func part2(inputSignal string) string {
 	}
 	// repeat actual input 10.000 times
 	input := inputSignal
-	for i := 0; i < 10000; i++ {
+	for i := 0; i < 9999; i++ {
 		input += inputSignal
 	}
 
 	inputDigits := getInputSignalDigits(input[offset:])
+	initialInputDigits := getInputSignalDigits(inputSignal)
 	for i := 0; i < 100; i++ {
-		updateInputSignalOptimized(inputDigits)
-		fmt.Println(inputDigits[:8])
+		updateInputSignalOptimized(inputDigits, initialInputDigits, i)
 	}
 
 	output := make([]string, len(inputDigits[:8]))

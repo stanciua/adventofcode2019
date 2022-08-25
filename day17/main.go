@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 type Point struct {
@@ -43,6 +45,7 @@ type VM struct {
 	output             int64
 	relativeBase       int64
 	outputReady        bool
+	stopped            bool
 }
 
 type Instruction struct {
@@ -53,7 +56,6 @@ type Instruction struct {
 }
 
 func NewVM() *VM {
-
 	return new(VM)
 }
 
@@ -73,6 +75,7 @@ const (
 	LessThan
 	Equals
 	UpdateRelativeBase
+	ProgramStop = 99
 )
 
 type ParameterMode int64
@@ -91,10 +94,10 @@ const (
 )
 
 // UP, DOWN, LEFT, RIGHT
-var DIRECTIONS = []Point{Point{-1, 0}, Point{1, 0}, Point{0, -1}, Point{0, 1}}
+var DIRECTIONS = []Point{{-1, 0}, {1, 0}, {0, -1}, {0, 1}}
 
 func (vm *VM) hasFinished() bool {
-	return vm.load(vm.instructionPointer) == 99
+	return vm.stopped
 }
 
 func (vm *VM) decodeCurrentInstruction() *Instruction {
@@ -120,6 +123,9 @@ func (vm *VM) decodeCurrentInstruction() *Instruction {
 		instruction.paramMode = []ParameterMode{ParameterMode(opcode / 100 % 10),
 			ParameterMode(opcode / 1000 % 10)}
 		instruction.length = 3
+	case ProgramStop:
+		vm.stopped = true
+
 	default:
 		panic(fmt.Sprintf("Invalid instruction received: %d", instruction.opcode))
 	}
@@ -131,7 +137,6 @@ func (vm *VM) load(address int64) int64 {
 	for address > int64(len(vm.memory)-1) {
 		vm.doubleMemory()
 	}
-
 	return vm.memory[address]
 }
 
@@ -226,6 +231,9 @@ func (vm *VM) executeCurrentInstruction() {
 		// update the relative base address
 		vm.relativeBase += vm.getParamValue(0)
 		vm.instructionPointer += vm.currInstruction.length
+	case ProgramStop:
+		break
+
 	default:
 		panic("Unknown opcode encountered!")
 	}
@@ -238,7 +246,6 @@ func part1(input []int64) int {
 	// build the map and find the Oxygen position
 	robot.buildView()
 	intersectionPoints := robot.findIntersectionPoints()
-	// robot.displayView()
 	sum := 0
 	for _, aligment := range robot.computeAligments(intersectionPoints) {
 		sum += aligment
@@ -247,28 +254,66 @@ func part1(input []int64) int {
 }
 
 func part2(input []int64) int {
+	// instantiate a robot to find the paths
 	view := make([][]rune, 0)
 	robot := Robot{vm: NewVM(), view: view}
 	robot.vm.loadProgram(input)
-	// build the map and find the Oxygen position
 	robot.buildView()
-	robot.displayView()
-	// start, end := robot.findStartEndPositions()
-	// visited := make([]Point, 0)
-	// currentPath := make([]Point, 0)
-	// currentPath = append(currentPath, start)
-	// path := make([]Point, 0)
-	// visited := make(map[Point]bool)
-	// prev := Point{0, 0}
-	// scaffolds := robot.getScaffolds()
-	// resultPath := make([]Point, 0)
-	// robot.dfs(start, end, path, visited, prev, scaffolds, &resultPath)
-	// fmt.Println(resultPath)
-	// translatedPath := translatePath(resultPath, RobotUp)
-	// fmt.Println(translatedPath)
-	path := []string{"R", "8", "R", "8", "R", "4", "R", "4", "R", "8", "L", "6", "L", "2", "R", "4", "R", "4", "R", "8", "R", "8", "R", "8", "L", "6", "L", "2"}
-	_, _, _ = getMovementFunctions(path)
-	return 0
+	start, end := robot.findStartEndPositions()
+	currentPath := make([]Point, 0)
+	currentPath = append(currentPath, start)
+	path := make([]Point, 0)
+	visited := make(map[Point]bool)
+	prev := Point{0, 0}
+	scaffolds := robot.getScaffolds()
+	paths := make([][]Point, 0)
+	robot.findPaths(start, end, path, visited, prev, scaffolds, &paths)
+	// wake up the robot
+	robot = Robot{vm: NewVM(), view: view}
+	robot.vm.loadProgram(input)
+	robot.vm.memory[0] = 2
+	output := int64(0)
+	for _, p := range paths {
+		translatedPath := translatePath(p, RobotUp)
+		splitedPath := compressPathTo3Movements(translatedPath)
+		if len(splitedPath) > 0 {
+			main, a, b, c := getRoutines(splitedPath)
+			output = robot.runVacuumRobot(main, a, b, c)
+			break
+		}
+	}
+	return int(output)
+}
+
+func (robot *Robot) runVacuumRobot(main []int64, a []int64, b []int64, c []int64) int64 {
+	output := int64(0)
+	idx := 0
+	input := append([]int64(nil), main...)
+	input = append(input, a...)
+	input = append(input, b...)
+	input = append(input, c...)
+	input = append(input, []int64{int64('n'), int64('\n')}...)
+
+	for {
+		robot.vm.currInstruction = robot.vm.decodeCurrentInstruction()
+		if robot.vm.currInstruction.opcode == Input {
+			robot.vm.input = []int64{input[idx]}
+			idx++
+			robot.vm.output = 0
+		}
+
+		robot.vm.executeCurrentInstruction()
+
+		if robot.vm.outputReady {
+			robot.vm.outputReady = false
+		}
+
+		if robot.vm.hasFinished() {
+			output = robot.vm.output
+			break
+		}
+	}
+	return output
 }
 
 func findInPath(path []Point, p Point) bool {
@@ -341,18 +386,11 @@ func (robot *Robot) findNeighbors(p Point) []Point {
 	return neighbors
 }
 
-func (robot *Robot) dfs(start, end Point, path []Point, visited map[Point]bool, prev Point, scaffolds []Point, resultPath *[]Point) {
-	// if we already found the one path, we just unwind the stack
-	// if len(*resultPath) > 0 {
-	// 	return
-	// }
-
+func (robot *Robot) findPaths(start, end Point, path []Point, visited map[Point]bool, prev Point, scaffolds []Point, paths *[][]Point) {
 	path = append(path, start)
 	visited[start] = true
 
 	if start == end {
-		// we are interested in only one path that passes
-		// through all the scaffolds and ignore the rest
 		if len(path) >= len(scaffolds) {
 			validPath := true
 			for _, s := range scaffolds {
@@ -363,10 +401,8 @@ func (robot *Robot) dfs(start, end Point, path []Point, visited map[Point]bool, 
 			}
 
 			if validPath {
-				*resultPath = path[:]
-				fmt.Println(translatePath(*resultPath, RobotUp))
+				*paths = append(*paths, append([]Point(nil), path...))
 			}
-
 		}
 	} else {
 		for _, p := range robot.findNeighbors(start) {
@@ -386,7 +422,7 @@ func (robot *Robot) dfs(start, end Point, path []Point, visited map[Point]bool, 
 			}
 			if !visited[p] || visitInter {
 				prev = start
-				robot.dfs(p, end, path, visited, prev, scaffolds, resultPath)
+				robot.findPaths(p, end, path, visited, prev, scaffolds, paths)
 			}
 		}
 	}
@@ -511,68 +547,204 @@ func translatePath(path []Point, robotDirection rune) []string {
 	return translatedPath
 }
 
-func getMovementFunctions(path []string) (a []string, b []string, c []string) {
-	// A should be at the begining while C should be at the end
-	// B should be somewhere in the middle
-	a = make([]string, 0)
-	b = make([]string, 0)
-	c = make([]string, 0)
-
-	current := make([]string, 0)
-	for i := 0; i < len(path); i++ {
-		current = append(current, path[i])
-		// search maximum current length into the copyPath
-		// and see if we can find a match
-		if findSubPathOccurence(current, path) {
-			continue
-		} else {
-			// we didnt find an occurence so stop here and find out what A is
-			current = current[:len(current)-1]
-			break
+func compressPathTo3Movements(path []string) []string {
+	occurences := make(map[string]bool)
+	for i := 1; i <= len(path); i++ {
+		copyPath := append([]string(nil), path...)
+		for len(copyPath) > 0 && len(copyPath) >= i {
+			key := strings.Join(copyPath[:i], "")
+			occurences[key] = true
+			copyPath = copyPath[1:]
 		}
 	}
+	occurencesFiltered := make(map[string]bool)
+	startCandidates := make(map[string]bool)
+	for k := range occurences {
+		// ignore keys that don't end in a number
+		if _, err := strconv.Atoi(k[len(k)-1:]); err != nil {
+			continue
+		}
+		// ignore keys that start with a number
+		if _, err := strconv.Atoi(k[:1]); err == nil {
+			continue
+		}
 
-	fmt.Println(current)
+		// ignore keys that are longer than 10 bytes as they
+		// go past the 20 characters limit
+		if isMovementTooLong(k) {
+			continue
+		}
 
-	return a, b, c
+		if strings.HasPrefix(strings.Join(path, ""), k) {
+			startCandidates[k] = true
+		}
+		occurencesFiltered[k] = true
+	}
+	// put the start prefix candidates in a list and sort them
+	// to get deterministic order
+	prefixList := make([]string, 0)
+	for k := range startCandidates {
+		prefixList = append(prefixList, k)
+	}
+	// sort them
+	sort.Sort(sort.StringSlice(prefixList))
+
+	// do the same for all filtered paths in occurences map
+	movementsList := make([]string, 0)
+	for k := range occurencesFiltered {
+		movementsList = append(movementsList, k)
+	}
+	// sort them
+	sort.Sort(sort.StringSlice(movementsList))
+	partition := make([]string, 0)
+	for _, sp := range prefixList {
+		currentPath := make([]string, 0)
+		currentPath = append(currentPath, sp)
+		compress(&currentPath, movementsList, path, &partition)
+	}
+
+	return partition
 }
 
-func findSubPathOccurence(subPath []string, path []string) bool {
-	for i, m := range subPath {
-		if m == path[i] {
-			continue
-		} else {
-			return false
+func getRoutines(path []string) (main []int64, a []int64, b []int64, c []int64) {
+	movementFunctions := []rune{'A', 'B', 'C'}
+	movements := make(map[string]rune)
+	for _, m := range path {
+		if _, ok := movements[m]; !ok {
+			movements[m] = movementFunctions[0]
+			movementFunctions = movementFunctions[1:]
 		}
 	}
 
-	return true
+	// main routine
+	main = make([]int64, 0)
+	for _, m := range path {
+		main = append(main, int64(movements[m]))
+		main = append(main, int64(','))
+	}
+	// append the newline
+	main[len(main)-1] = int64('\n')
+
+	// a, b, c routines
+	a = make([]int64, 0)
+	b = make([]int64, 0)
+	c = make([]int64, 0)
+	pd := false
+	for m, mName := range movements {
+		if mName == 'A' {
+			for _, d := range m {
+				if unicode.IsDigit(d) {
+					if pd {
+						a = a[:len(a)-1]
+					}
+					pd = true
+				} else {
+					pd = false
+				}
+				a = append(a, int64(d))
+				a = append(a, int64(','))
+			}
+			a[len(a)-1] = int64('\n')
+		} else if mName == 'B' {
+			for _, d := range m {
+				if unicode.IsDigit(d) {
+					if pd {
+						b = b[:len(b)-1]
+					}
+					pd = true
+				} else {
+					pd = false
+				}
+				b = append(b, int64(d))
+				b = append(b, int64(','))
+			}
+			b[len(b)-1] = int64('\n')
+		} else {
+			for _, d := range m {
+				if unicode.IsDigit(d) {
+					if pd {
+						c = c[:len(c)-1]
+					}
+					pd = true
+				} else {
+					pd = false
+				}
+				c = append(c, int64(d))
+				c = append(c, int64(','))
+			}
+			c[len(c)-1] = int64('\n')
+		}
+	}
+	return main, a, b, c
+}
+
+func isMovementTooLong(move string) bool {
+	len := 0
+	insideDigit := false
+	for _, c := range move {
+		if len > 10 {
+			return true
+		}
+		if !unicode.IsDigit(c) {
+			len++
+			if insideDigit {
+				len++
+				insideDigit = false
+			}
+		} else {
+			insideDigit = true
+			continue
+		}
+	}
+	return false
+}
+
+func compress(currentPath *[]string, movementsList []string, path []string, partition *[]string) {
+	solution := make(map[string]bool)
+
+	for _, s := range *currentPath {
+		solution[s] = true
+	}
+
+	if len(solution) > 3 || len(*currentPath) > 10 {
+		return
+	}
+
+	if strings.Join(*currentPath, "") == strings.Join(path, "") {
+		// we should only have 3 movesets (A, B, C) and maximum of 10 movesets are
+		// allowed in main routine
+		if len(solution) == 3 && len(*currentPath) <= 10 {
+			*partition = append(*partition, *currentPath...)
+			return
+		}
+	}
+
+	for _, m := range movementsList {
+		*currentPath = append(*currentPath, m)
+
+		if !strings.HasPrefix(strings.Join(path, ""), strings.Join(*currentPath, "")) {
+			*currentPath = (*currentPath)[:len(*currentPath)-1]
+			continue
+		}
+		compress(currentPath, movementsList, path, partition)
+		*currentPath = (*currentPath)[:len(*currentPath)-1]
+	}
 }
 
 func (robot *Robot) buildView() {
-	// i := 0
-	// robot.view = append(robot.view, make([]rune, 0))
-	// for done, output := robot.robotCameraOutput(); !done; done, output = robot.robotCameraOutput() {
-	// 	if output == NewLine {
-	// 		i++
-	// 		robot.view = append(robot.view, make([]rune, 0))
-	// 	} else {
-	// 		robot.view[i] = append(robot.view[i], output)
-	// 	}
-	// }
-	//
-	// // the robot sends two new lines at the end, remove them from the view
-	// robot.view = robot.view[:len(robot.view)-2]
-
-	// view := "###..\n#.#..\n..#..\n..#..\n^####\n..#.#\n..###"
-	// view := "..#..........\n..#..........\n#######...###\n#.#...#...#.#\n#############\n..#...#...#..\n..#####...^.."
-	view := "#######...#####\n#.....#...#...#\n#.....#...#...#\n......#...#...#\n......#...###.#\n......#.....#.#\n^########...#.#\n......#.#...#.#\n......#########\n........#...#..\n....#########..\n....#...#......\n....#...#......\n....#...#......\n....#####......"
-	for idx, line := range strings.Split(view, "\n") {
-		robot.view = append(robot.view, make([]rune, 0))
-		for _, c := range line {
-			robot.view[idx] = append(robot.view[idx], c)
+	i := 0
+	robot.view = append(robot.view, make([]rune, 0))
+	for done, output := robot.robotCameraOutput(); !done; done, output = robot.robotCameraOutput() {
+		if output == NewLine {
+			i++
+			robot.view = append(robot.view, make([]rune, 0))
+		} else {
+			robot.view[i] = append(robot.view[i], output)
 		}
 	}
+
+	// the robot sends two new lines at the end, remove them from the view
+	robot.view = robot.view[:len(robot.view)-2]
 }
 
 func (robot *Robot) displayView() {

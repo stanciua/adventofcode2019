@@ -2,13 +2,14 @@ package main
 
 import (
 	"bufio"
-	// "fmt"
-	"github.com/k0kubun/pp"
+	"fmt"
 	"log"
 	"math"
 	"os"
 	"sort"
 	"unicode"
+
+	"github.com/k0kubun/pp"
 )
 
 type Vertex struct {
@@ -38,42 +39,39 @@ func findEntrance(m [][]rune) Vertex {
 	return Vertex{-1, -1}
 }
 
-func isAllowed(s rune, visitedKeys map[rune]bool) bool {
-	if s == OpenPassage ||
-		unicode.IsLower(s) ||
-		(unicode.IsUpper(s) && visitedKeys[unicode.ToLower(s)]) {
-		return true
+func isMoveAllowed(s rune, doorsOpened bool, visitedKeys map[rune]bool) bool {
+	if !doorsOpened {
+		if s == OpenPassage ||
+			s == Entrance ||
+			unicode.IsLower(s) ||
+			(unicode.IsUpper(s) && visitedKeys[unicode.ToLower(s)]) {
+			return true
+		} else {
+			return false
+		}
+	} else if s == Wall {
+		return false
 	}
-	return false
+
+	return true
 }
 
-func adjacentVertices(v Vertex, edges []Edge) []Vertex {
-	vertices := make([]Vertex, 0)
-	for _, e := range edges {
-		if e.v1 == v {
-			vertices = append(vertices, e.v2)
-		} else if e.v2 == v {
-			vertices = append(vertices, e.v1)
-		}
-	}
-	return vertices
-}
-func findNeighbors(p Vertex, m map[Vertex]rune, visitedKeys map[rune]bool) []Vertex {
+func findNeighbors(p Vertex, m [][]rune, visitedKeys map[rune]bool, doorsOpened bool) []Vertex {
 	neighbors := make([]Vertex, 0)
 	pl := Vertex{p.y - 1, p.x}
-	if _, ok := m[pl]; ok && isAllowed(m[pl], visitedKeys) {
+	if p.y-1 >= 0 && isMoveAllowed(m[pl.y][pl.x], doorsOpened, visitedKeys) {
 		neighbors = append(neighbors, pl)
 	}
 	pl = Vertex{p.y + 1, p.x}
-	if _, ok := m[pl]; ok && isAllowed(m[pl], visitedKeys) {
+	if p.y+1 < len(m) && isMoveAllowed(m[pl.y][pl.x], doorsOpened, visitedKeys) {
 		neighbors = append(neighbors, pl)
 	}
 	pl = Vertex{p.y, p.x - 1}
-	if _, ok := m[pl]; ok && isAllowed(m[pl], visitedKeys) {
+	if p.x-1 >= 0 && isMoveAllowed(m[pl.y][pl.x], doorsOpened, visitedKeys) {
 		neighbors = append(neighbors, pl)
 	}
 	pl = Vertex{p.y, p.x + 1}
-	if _, ok := m[pl]; ok && isAllowed(m[pl], visitedKeys) {
+	if p.x+1 < len(m[p.y]) && isMoveAllowed(m[pl.y][pl.x], doorsOpened, visitedKeys) {
 		neighbors = append(neighbors, pl)
 	}
 
@@ -90,7 +88,7 @@ func findIndex(Q []Vertex, p Vertex) (bool, int) {
 	return false, -1
 }
 
-func isKeyReachable(graph map[Vertex]rune, source Vertex, destination Vertex, visitedKeys map[rune]bool) bool {
+func isKeyReachable(m [][]rune, source Vertex, destination Vertex, visitedKeys map[rune]bool) bool {
 	Q := make([]Vertex, 0)
 	explored := make(map[Vertex]bool)
 	explored[source] = true
@@ -103,7 +101,7 @@ func isKeyReachable(graph map[Vertex]rune, source Vertex, destination Vertex, vi
 			return true
 		}
 
-		for _, w := range findNeighbors(v, graph, visitedKeys) {
+		for _, w := range findNeighbors(v, m, visitedKeys, false) {
 			if !explored[w] {
 				explored[w] = true
 				Q = append(Q, w)
@@ -114,30 +112,32 @@ func isKeyReachable(graph map[Vertex]rune, source Vertex, destination Vertex, vi
 	return false
 }
 
-func reachableKeys(key Vertex, keys []Vertex, graph map[Vertex]rune, visitedKeys map[rune]bool) []Vertex {
-	reachable := make([]Vertex, 0)
+func reachableKeysBitSet(key Vertex, remainingKeysVi map[Vertex]int, remainingKeysIv map[int]Vertex, remainingKeysBitSet int, m [][]rune, visitedKeys map[rune]bool) int {
+	reachable := 0
 
-	for _, v := range keys {
-		if isKeyReachable(graph, key, v, visitedKeys) {
-			reachable = append(reachable, v)
+	for i := 0; remainingKeysBitSet != 0; i++ {
+		if remainingKeysBitSet&1 != 0 {
+			if isKeyReachable(m, key, remainingKeysIv[i], visitedKeys) {
+				reachable |= 1 << i
+			}
 		}
+		remainingKeysBitSet >>= 1
 	}
 	return reachable
 }
 
 type CacheKey struct {
-	key           Vertex
-	remainingKeys [26]Vertex
+	currentKey    int
+	remainingKeys int
 }
 
-func minDistance(graph map[Vertex]rune, distances map[Edge]int, currentKey Vertex, remainingKeys *[]Vertex, visitedKeys map[rune]bool, cache map[CacheKey]int) int {
-	if len(*remainingKeys) == 0 {
+func minDistance(m [][]rune, distances map[Edge]int, currentKey Vertex, remainingKeysVi map[Vertex]int, remainingKeysIv map[int]Vertex, remainingKeysBitSet int, visitedKeys map[rune]bool, cache map[CacheKey]int) int {
+	if remainingKeysBitSet == 0 {
 		return 0
 	}
 
-	var remainingKeyCache [26]Vertex
-	copy(remainingKeyCache[:], *remainingKeys)
-	cacheKey := CacheKey{currentKey, remainingKeyCache}
+	// make sure we take into account entrance here
+	cacheKey := CacheKey{remainingKeysVi[currentKey], remainingKeysBitSet}
 
 	if d, ok := cache[cacheKey]; ok {
 		return d
@@ -145,27 +145,33 @@ func minDistance(graph map[Vertex]rune, distances map[Edge]int, currentKey Verte
 
 	min := math.MaxInt
 
-	reachableKeys := reachableKeys(currentKey, *remainingKeys, graph, visitedKeys)
-	for _, k := range reachableKeys {
-		*remainingKeys = removeKey(*remainingKeys, k)
-		visitedKeys[graph[k]] = true
-		distance := 0
-		if d, ok := distances[Edge{currentKey, k}]; ok {
-			distance = d
-		} else {
-			pp.Println(string(graph[currentKey]), string(graph[k]))
-		}
-		distance += minDistance(graph, distances, k, remainingKeys, visitedKeys, cache)
-		delete(visitedKeys, graph[k])
-		*remainingKeys = append(*remainingKeys, k)
+	reachableBitset := reachableKeysBitSet(currentKey, remainingKeysVi, remainingKeysIv, remainingKeysBitSet, m, visitedKeys)
+	for i := 0; reachableBitset != 0; i++ {
+		if reachableBitset&1 != 0 {
+			mask := 1 << i
+			remainingKeysBitSet &= ^mask
+			p := remainingKeysIv[i]
+			visitedKeys[m[p.y][p.x]] = true
+			distance := 0
+			if d, ok := distances[Edge{currentKey, remainingKeysIv[i]}]; ok {
+				distance = d
+			} else if d, ok := distances[Edge{remainingKeysIv[i], currentKey}]; ok {
+				distance = d
+			} else {
+				panic("invalid edge present!")
+			}
+			distance += minDistance(m, distances, remainingKeysIv[i], remainingKeysVi, remainingKeysIv, remainingKeysBitSet, visitedKeys, cache)
+			delete(visitedKeys, m[p.y][p.x])
+			remainingKeysBitSet |= mask
 
-		if distance < min {
-			min = distance
+			if distance < min {
+				min = distance
+			}
 		}
+		reachableBitset >>= 1
 	}
 
-	copy(remainingKeyCache[:], *remainingKeys)
-	cacheKey = CacheKey{currentKey, remainingKeyCache}
+	cacheKey = CacheKey{remainingKeysVi[currentKey], remainingKeysBitSet}
 	cache[cacheKey] = min
 	return min
 }
@@ -180,47 +186,34 @@ func removeKey(keys []Vertex, key Vertex) []Vertex {
 	return keys
 }
 
-func dijkstra(m map[Vertex]rune, source Vertex, destination Vertex, k map[rune]Vertex, doors map[rune]Vertex) int {
+func dijkstra(m [][]rune, source Vertex, destination Vertex, k map[rune]Vertex) int {
 	dist := make(map[Vertex]int)
-	prev := make(map[Vertex]Vertex)
 	Q := make([]Vertex, 0)
 
-	pkey := make(map[Vertex]rune)
-	for k1, v := range k {
-		pkey[v] = k1
+	for i := range m {
+		for j := range m[i] {
+			dist[Vertex{i, j}] = math.MaxInt
+		}
 	}
-	for k := range m {
-		dist[k] = math.MaxInt
-		Q = append(Q, k)
-	}
+
+	Q = append(Q, source)
 
 	dist[source] = 0
 	visitedKeys := make(map[rune]bool)
 	for len(Q) > 0 {
 		u := findMinDistance(Q, dist)
 		if u == destination {
-			// get the door position relative to this key
-			p := doors[unicode.ToUpper(m[u])]
-			m[p] = OpenPassage
 			return dist[u]
 		}
-		if unicode.IsLower(m[u]) {
-			p := doors[unicode.ToUpper(m[u])]
-			m[p] = OpenPassage
-		}
-		if !unicode.IsUpper(m[u]) {
-			if found, i := findIndex(Q, u); found {
-				Q = append(Q[:i], Q[i+1:]...)
-			}
+		if found, i := findIndex(Q, u); found {
+			Q = append(Q[:i], Q[i+1:]...)
 		}
 
-		for _, v := range findNeighbors(u, m, visitedKeys) {
-			if found, _ := findIndex(Q, v); found {
-				alt := dist[u] + 1
-				if alt < dist[v] {
-					dist[v] = alt
-					prev[v] = u
-				}
+		for _, v := range findNeighbors(u, m, visitedKeys, true) {
+			alt := dist[u] + 1
+			if alt < dist[v] {
+				dist[v] = alt
+				Q = append(Q, v)
 			}
 		}
 	}
@@ -236,38 +229,37 @@ func findMinDistance(Q []Vertex, dist map[Vertex]int) Vertex {
 			p = k
 		}
 	}
-
 	return p
 }
-func findKeysAndDoors(m [][]rune) (map[rune]Vertex, map[rune]Vertex) {
-	doors := make(map[rune]Vertex)
+
+func findKeys(m [][]rune) map[rune]Vertex {
 	keys := make(map[rune]Vertex)
 	for i, line := range m {
 		for j, s := range line {
-			if unicode.IsUpper(s) {
-				doors[s] = Vertex{i, j}
-				// } else if unicode.IsLower(s) || s == Entrance {
-			} else if unicode.IsLower(s) {
+			if unicode.IsLower(s) {
 				keys[s] = Vertex{i, j}
 			}
 		}
 	}
-
-	return keys, doors
+	return keys
 }
 
-func preCalculateDistances(graph map[Vertex]rune, keysList []Vertex, keys map[rune]Vertex, doors map[rune]Vertex) map[Edge]int {
+func preCalculateDistances(m [][]rune, keysList []Vertex, keys map[rune]Vertex) map[Edge]int {
 	distances := make(map[Edge]int)
 	for i := 0; i < len(keysList); i++ {
 		for j := 0; j < len(keysList); j++ {
 			if i == j {
 				continue
 			}
-			d := dijkstra(graph, keysList[i], keysList[j], keys, doors)
 			key := Edge{keysList[i], keysList[j]}
 			if _, ok := distances[key]; ok {
 				continue
 			}
+			key = Edge{keysList[j], keysList[i]}
+			if _, ok := distances[key]; ok {
+				continue
+			}
+			d := dijkstra(m, keysList[i], keysList[j], keys)
 			distances[key] = d
 		}
 	}
@@ -277,8 +269,7 @@ func preCalculateDistances(graph map[Vertex]rune, keysList []Vertex, keys map[ru
 
 func part1(m [][]rune) int {
 	entrance := findEntrance(m)
-	m[entrance.y][entrance.x] = OpenPassage
-	keys, doors := findKeysAndDoors(m)
+	keys := findKeys(m)
 	sources := make([]rune, 0)
 	for k := range keys {
 		sources = append(sources, k)
@@ -294,37 +285,87 @@ func part1(m [][]rune) int {
 		sourcePoints = append(sourcePoints, keys[s])
 	}
 
-	// build a map of all the locations except walls
-	graph := make(map[Vertex]rune)
-	for i := range m {
-		for j := range m[i] {
-			if m[i][j] != Wall {
-				graph[Vertex{i, j}] = m[i][j]
-			}
-		}
-	}
-
-	// copy of the keys
-	remainingKeys := make([]Vertex, 0)
-	for _, k := range sources {
-		if k == Entrance {
-			continue
-		}
-		remainingKeys = append(remainingKeys, keys[k])
+	remainingKeysVi := make(map[Vertex]int)
+	remainingKeysIv := make(map[int]Vertex)
+	remainingKeysBitSet := 0
+	for i, v := range sources {
+		remainingKeysVi[keys[v]] = i
+		remainingKeysIv[i] = keys[v]
+		remainingKeysBitSet |= 1 << i
 	}
 
 	visitedKeys := make(map[rune]bool)
-	copyGraph := make(map[Vertex]rune)
-	for k, v := range graph {
-		copyGraph[k] = v
-	}
 	cache := make(map[CacheKey]int)
-	distances := preCalculateDistances(copyGraph, sourcePoints, keys, doors)
-	return minDistance(graph, distances, entrance, &remainingKeys, visitedKeys, cache)
+	distances := preCalculateDistances(m, sourcePoints, keys)
+	return minDistance(m, distances, entrance, remainingKeysVi, remainingKeysIv, remainingKeysBitSet, visitedKeys, cache)
+}
+
+func printMap(m [][]rune) {
+	for _, line := range m {
+		for _, c := range line {
+			fmt.Print(string(c))
+		}
+		fmt.Println()
+	}
 }
 
 func part2(m [][]rune) int {
+	entrance := findEntrance(m)
+	_, _, _, _ = updateMap(entrance, m)
+	keys := findKeys(m)
+	sources := make([]rune, 0)
+	for k := range keys {
+		sources = append(sources, k)
+	}
+	// sort the sources, to have keys a, b, c, d...
+	sort.Slice(sources, func(i, j int) bool {
+		return sources[i] < sources[j]
+	})
+	sourcePoints := make([]Vertex, 0)
+	// add the entrance also
+	sourcePoints = append(sourcePoints, entrance)
+	for _, s := range sources {
+		sourcePoints = append(sourcePoints, keys[s])
+	}
+
+	remainingKeysVi := make(map[Vertex]int)
+	remainingKeysIv := make(map[int]Vertex)
+	remainingKeysBitSet := 0
+	for i, v := range sources {
+		remainingKeysVi[keys[v]] = i
+		remainingKeysIv[i] = keys[v]
+		remainingKeysBitSet |= 1 << i
+	}
+
+	visitedKeys := make(map[rune]bool)
+	cache := make(map[CacheKey]int)
+	distances := preCalculateDistances(m, sourcePoints, keys)
+	return minDistance(m, distances, entrance, remainingKeysVi, remainingKeysIv, remainingKeysBitSet, visitedKeys, cache)
 	return 0
+}
+
+func updateMap(e Vertex, m [][]rune) (Vertex, Vertex, Vertex, Vertex) {
+	// centre wall
+	m[e.y][e.x] = Wall
+	// up wall
+	m[e.y-1][e.x] = Wall
+	// down wall
+	m[e.y+1][e.x] = Wall
+	// left wall
+	m[e.y][e.x-1] = Wall
+	// right wall
+	m[e.y][e.x+1] = Wall
+	// add the 4 entrances
+	// left-up
+	m[e.y-1][e.x-1] = Entrance
+	// right-up
+	m[e.y-1][e.x+1] = Entrance
+	// left-down
+	m[e.y+1][e.x-1] = Entrance
+	// right-down
+	m[e.y+1][e.x+1] = Entrance
+
+	return Vertex{e.y - 1, e.x - 1}, Vertex{e.y - 1, e.x + 1}, Vertex{e.y + 1, e.x - 1}, Vertex{e.y + 1, e.x + 1}
 }
 
 func main() {

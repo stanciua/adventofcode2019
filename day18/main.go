@@ -286,29 +286,6 @@ func robotData(entrances []Vertex, keys map[rune]Vertex, visitedKeys map[rune]bo
 
 	return sourcePoints, remainingKeysVi, remainingKeysIv, remainingKeysBitSet
 }
-func part1(m [][]rune) int {
-	entrance := findEntrance(m)
-	keys := findKeys(m)
-	sourcePoints, remainingKeysVi, remainingKeysIv, remainingKeysBitSet := robotData([]Vertex{entrance}, keys, nil)
-	visitedKeys := make(map[rune]bool)
-	cache := make(map[CacheKey]int)
-	distances := calcDist1Robot(m, sourcePoints, keys)
-	return minDistance1Robot(m, distances, entrance, remainingKeysVi, remainingKeysIv, remainingKeysBitSet, visitedKeys, cache)
-}
-
-func part2(m [][]rune) int {
-	entrance := findEntrance(m)
-	e1, e2, e3, e4 := updateMap(entrance, m)
-	keys := findKeys(m)
-	visitedKeys := make(map[rune]bool)
-	_, remainingKeysVi, remainingKeysIv, remainingKeysBitSet := robotData([]Vertex{e1, e2, e3, e4}, keys, visitedKeys)
-
-	robotsPos := [4]Vertex{e1, e2, e3, e4}
-	distances := calcDist4Robots(remainingKeysVi, remainingKeysIv, remainingKeysBitSet, m, visitedKeys, robotsPos, keys)
-	cache := make(map[RobotsMoveCacheKey]int)
-	visitedKeys = make(map[rune]bool)
-	return minDistance4Robots(m, distances, entrance, remainingKeysVi, remainingKeysIv, remainingKeysBitSet, visitedKeys, cache, robotsPos)
-}
 
 func calcDist4Robots(remainingKeysVi map[Vertex]int, remainingKeysIv map[int]Vertex, remainingKeysBitSet int, m [][]rune, visitedKeys map[rune]bool, startPositions [4]Vertex, keys map[rune]Vertex) map[Edge]int {
 	distances := make(map[Edge]int)
@@ -439,6 +416,30 @@ func updateMap(e Vertex, m [][]rune) (Vertex, Vertex, Vertex, Vertex) {
 	m[e.y+1][e.x+1] = Entrance
 
 	return Vertex{e.y - 1, e.x - 1}, Vertex{e.y - 1, e.x + 1}, Vertex{e.y + 1, e.x - 1}, Vertex{e.y + 1, e.x + 1}
+}
+
+func part1(m [][]rune) int {
+	entrance := findEntrance(m)
+	keys := findKeys(m)
+	sourcePoints, remainingKeysVi, remainingKeysIv, remainingKeysBitSet := robotData([]Vertex{entrance}, keys, nil)
+	visitedKeys := make(map[rune]bool)
+	cache := make(map[CacheKey]int)
+	distances := calcDist1Robot(m, sourcePoints, keys)
+	return minDistance1Robot(m, distances, entrance, remainingKeysVi, remainingKeysIv, remainingKeysBitSet, visitedKeys, cache)
+}
+
+func part2(m [][]rune) int {
+	entrance := findEntrance(m)
+	e1, e2, e3, e4 := updateMap(entrance, m)
+	keys := findKeys(m)
+	visitedKeys := make(map[rune]bool)
+	_, remainingKeysVi, remainingKeysIv, remainingKeysBitSet := robotData([]Vertex{e1, e2, e3, e4}, keys, visitedKeys)
+
+	robotsPos := [4]Vertex{e1, e2, e3, e4}
+	distances := calcDist4Robots(remainingKeysVi, remainingKeysIv, remainingKeysBitSet, m, visitedKeys, robotsPos, keys)
+	cache := make(map[RobotsMoveCacheKey]int)
+	visitedKeys = make(map[rune]bool)
+	return minDistance4Robots(m, distances, entrance, remainingKeysVi, remainingKeysIv, remainingKeysBitSet, visitedKeys, cache, robotsPos)
 }
 
 func main() {

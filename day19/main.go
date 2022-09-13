@@ -20,8 +20,8 @@ type Neighbor struct {
 }
 
 const (
-	HEIGHT int = 100
-	WIDTH  int = 100
+	HEIGHT int = 2000
+	WIDTH  int = 2000
 )
 
 const (
@@ -301,16 +301,13 @@ func part1(input []int64) int {
 
 func part2(input []int64) int {
 	view, beamRows := buildPicture(input)
-	printView(view)
-	findClosestSquare(10, view, beamRows)
-	return 0
+	// printView(view)
+	return findClosestSquare(100, view, beamRows)
 }
 
 func findClosestSquare(squareSize int, view [][]rune, beamRows map[int]BeamRow) int {
+	output := 0
 	for i := range view {
-		if i == 20 {
-			fmt.Println("Stop")
-		}
 		b, ok := BeamRow{-1, -1}, false
 		if b, ok = beamRows[i]; !ok {
 			continue
@@ -333,11 +330,12 @@ func findClosestSquare(squareSize int, view [][]rune, beamRows map[int]BeamRow) 
 		}
 
 		// check bottom-left corner
-		if i+squareSize >= len(view) || view[i+squareSize][b.end+1-squareSize] != Pulled {
+		// 0123456789012345678
+		if i+squareSize-1 >= len(view) || view[i+squareSize-1][b.end+1-squareSize] != Pulled {
 			continue
 		}
 
-		y = i + squareSize
+		y = i + squareSize - 1
 		x = b.end + 1 - squareSize
 		if !(y-1 >= 0 && view[y-1][x] == Pulled && y+1 < len(view) && view[y+1][x] == Stationary && x-1 >= 0 && view[y][x-1] == Stationary && x+1 < len(view[y]) && view[y][x+1] == Pulled) {
 			continue
@@ -354,12 +352,12 @@ func findClosestSquare(squareSize int, view [][]rune, beamRows map[int]BeamRow) 
 			continue
 		}
 
-		y = i + squareSize
+		y = i
 		x = b.end + 1 - squareSize
-		fmt.Println(y, x)
+		output += x*10000 + y
 		break
 	}
-	return -1
+	return output
 }
 
 func (robot *Drone) deployDrone(input []int64) int64 {

@@ -20,8 +20,8 @@ type Neighbor struct {
 }
 
 const (
-	HEIGHT int = 2000
-	WIDTH  int = 2000
+	HEIGHT int = 1200
+	WIDTH  int = 1200
 )
 
 const (
@@ -325,7 +325,7 @@ func findClosestSquare(squareSize int, view [][]rune, beamRows map[int]BeamRow) 
 
 		y = i
 		x = b.end + 1 - squareSize
-		if !(y-1 >= 0 && view[y-1][x] == Pulled && y+1 < len(view) && view[y+1][x] == Pulled && x-1 >= 0 && view[y][x-1] == Pulled && x+1 < len(view[y]) && view[y][x+1] == Pulled) {
+		if !(y-1 >= 0 && view[y-1][x] == Pulled && y+1 < len(view) && view[y+1][x] == Pulled && x-1 >= 0 && (view[y][x-1] == Pulled || view[y][x-1] == Stationary) && x+1 < len(view[y]) && view[y][x+1] == Pulled) {
 			continue
 		}
 
@@ -341,16 +341,16 @@ func findClosestSquare(squareSize int, view [][]rune, beamRows map[int]BeamRow) 
 			continue
 		}
 
-		// check the bottom-right corner
-		if i+squareSize >= len(view) {
-			continue
-		}
-
-		y = i + squareSize
-		x = b.end
-		if !(y-1 >= 0 && view[y-1][x] == Pulled && y+1 < len(view) && view[y+1][x] == Pulled && x-1 >= 0 && view[y][x-1] == Pulled && x+1 < len(view[y]) && view[y][x+1] == Pulled) {
-			continue
-		}
+		// // check the bottom-right corner
+		// if i+squareSize-1 >= len(view) {
+		// 	continue
+		// }
+		//
+		// y = i + squareSize - 1
+		// x = b.end
+		// if !(y-1 >= 0 && view[y-1][x] == Pulled && y+1 < len(view) && view[y+1][x] == Pulled && x-1 >= 0 && view[y][x-1] == Pulled && x+1 < len(view[y]) && view[y][x+1] == Pulled) {
+		// 	continue
+		// }
 
 		y = i
 		x = b.end + 1 - squareSize

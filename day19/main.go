@@ -9,19 +9,9 @@ import (
 	"strings"
 )
 
-type Point struct {
-	y int
-	x int
-}
-
-type Neighbor struct {
-	pos    Point
-	symbol rune
-}
-
 const (
-	HEIGHT int = 1200
-	WIDTH  int = 1200
+	HEIGHT int = 100
+	WIDTH  int = 100
 )
 
 const (
@@ -83,16 +73,6 @@ const (
 	Immediate
 	Relative
 )
-
-const (
-	Up int = iota
-	Down
-	Left
-	Right
-)
-
-// UP, DOWN, LEFT, RIGHT
-var DIRECTIONS = []Point{{-1, 0}, {1, 0}, {0, -1}, {0, 1}}
 
 func (vm *VM) hasFinished() bool {
 	return vm.stopped
@@ -242,17 +222,43 @@ type BeamRow struct {
 	end   int
 }
 
-func buildPicture(input []int64) ([][]rune, map[int]BeamRow) {
+func (d *Drone) memoryChanges(program []int64) map[int]int64 {
+	changes := make(map[int]int64)
+	_ = d.deployDrone([]int64{0, 0})
+	for i, v := range program {
+		if d.vm.memory[i] != v {
+			changes[i] = v
+		}
+	}
+
+	return changes
+}
+
+func (d *Drone) resetDrone(changes map[int]int64) {
+	for k, v := range changes {
+		d.vm.memory[k] = v
+	}
+
+	d.vm.currInstruction = nil
+	d.vm.instructionPointer = 0
+}
+
+func (d *Drone) buildPicture(input []int64, changes map[int]int64) ([][]rune, map[int]BeamRow) {
 	view := make([][]rune, 0)
-	beamRows := make(map[int]BeamRow)
 	for i := 0; i < HEIGHT; i++ {
 		line := make([]rune, 0)
 		view = append(view, line)
+		for j := 0; j < WIDTH; j++ {
+			view[i] = append(view[i], Stationary)
+		}
+	}
+	beamRows := make(map[int]BeamRow)
+outer:
+	for i := 0; i < HEIGHT; i++ {
 		fj, lj := 0, 0
 		fSet := false
 		for j := 0; j < WIDTH; j++ {
-			d := Drone{vm: NewVM()}
-			d.vm.loadProgram(input)
+			d.resetDrone(changes)
 			output := d.deployDrone([]int64{int64(i), int64(j)})
 			if !fSet && output == 1 {
 				fj = j
@@ -262,13 +268,59 @@ func buildPicture(input []int64) ([][]rune, map[int]BeamRow) {
 				lj = j - 1
 				fSet = false
 				beamRow := BeamRow{fj, lj}
+				fmt.Println("(", lj-fj+1, ", ", fj, ")")
 				beamRows[i] = beamRow
+				view[i][j] = DroneOutput[output]
+				continue outer
 			}
-			view[i] = append(view[i], DroneOutput[output])
+			view[i][j] = DroneOutput[output]
 		}
 	}
 
 	return view, beamRows
+}
+
+func findClosestSquare(squareSize int, view [][]rune, beamRows map[int]BeamRow) int {
+	output := 0
+	for i := range view {
+		b, ok := BeamRow{-1, -1}, false
+		if b, ok = beamRows[i]; !ok || b.end-b.begin < 99 {
+			continue
+		}
+		y := i
+		x := b.end
+		// check top-right corner
+		if !(y-1 >= 0 && view[y-1][x] == Stationary && y+1 < len(view) && view[y+1][x] == Pulled && x-1 >= 0 && view[y][x-1] == Pulled && x+1 < len(view[y]) && view[y][x+1] == Stationary) {
+			continue
+		}
+		// check top-left corner
+		if b.end+1-squareSize < 0 || view[i][b.end+1-squareSize] != Pulled {
+			continue
+		}
+
+		y = i
+		x = b.end + 1 - squareSize
+		if !(y-1 >= 0 && view[y-1][x] == Pulled && y+1 < len(view) && view[y+1][x] == Pulled && x-1 >= 0 && (view[y][x-1] == Pulled || view[y][x-1] == Stationary) && x+1 < len(view[y]) && view[y][x+1] == Pulled) {
+			continue
+		}
+
+		// check bottom-left corner
+		if i+squareSize-1 >= len(view) || view[i+squareSize-1][b.end+1-squareSize] != Pulled {
+			continue
+		}
+
+		y = i + squareSize - 1
+		x = b.end + 1 - squareSize
+		if !(y-1 >= 0 && view[y-1][x] == Pulled && y+1 < len(view) && view[y+1][x] == Stationary && x-1 >= 0 && view[y][x-1] == Stationary && x+1 < len(view[y]) && view[y][x+1] == Pulled) {
+			continue
+		}
+
+		y = i
+		x = b.end + 1 - squareSize
+		output += y*10000 + x
+		break
+	}
+	return output
 }
 
 func countPoints(view [][]rune) int {
@@ -294,70 +346,19 @@ func printView(view [][]rune) {
 }
 
 func part1(input []int64) int {
-
-	view, _ := buildPicture(input)
+	d := Drone{vm: NewVM()}
+	d.vm.loadProgram(input)
+	changes := d.memoryChanges(input)
+	view, _ := d.buildPicture(input, changes)
 	return countPoints(view)
 }
 
 func part2(input []int64) int {
-	view, beamRows := buildPicture(input)
-	// printView(view)
+	d := Drone{vm: NewVM()}
+	d.vm.loadProgram(input)
+	changes := d.memoryChanges(input)
+	view, beamRows := d.buildPicture(input, changes)
 	return findClosestSquare(100, view, beamRows)
-}
-
-func findClosestSquare(squareSize int, view [][]rune, beamRows map[int]BeamRow) int {
-	output := 0
-	for i := range view {
-		b, ok := BeamRow{-1, -1}, false
-		if b, ok = beamRows[i]; !ok {
-			continue
-		}
-		y := i
-		x := b.end
-		// check top-right corner
-		if !(y-1 >= 0 && view[y-1][x] == Stationary && y+1 < len(view) && view[y+1][x] == Pulled && x-1 >= 0 && view[y][x-1] == Pulled && x+1 < len(view[y]) && view[y][x+1] == Stationary) {
-			continue
-		}
-		// check top-left corner
-		if b.end+1-squareSize < 0 || view[i][b.end+1-squareSize] != Pulled {
-			continue
-		}
-
-		y = i
-		x = b.end + 1 - squareSize
-		if !(y-1 >= 0 && view[y-1][x] == Pulled && y+1 < len(view) && view[y+1][x] == Pulled && x-1 >= 0 && (view[y][x-1] == Pulled || view[y][x-1] == Stationary) && x+1 < len(view[y]) && view[y][x+1] == Pulled) {
-			continue
-		}
-
-		// check bottom-left corner
-		// 0123456789012345678
-		if i+squareSize-1 >= len(view) || view[i+squareSize-1][b.end+1-squareSize] != Pulled {
-			continue
-		}
-
-		y = i + squareSize - 1
-		x = b.end + 1 - squareSize
-		if !(y-1 >= 0 && view[y-1][x] == Pulled && y+1 < len(view) && view[y+1][x] == Stationary && x-1 >= 0 && view[y][x-1] == Stationary && x+1 < len(view[y]) && view[y][x+1] == Pulled) {
-			continue
-		}
-
-		// // check the bottom-right corner
-		// if i+squareSize-1 >= len(view) {
-		// 	continue
-		// }
-		//
-		// y = i + squareSize - 1
-		// x = b.end
-		// if !(y-1 >= 0 && view[y-1][x] == Pulled && y+1 < len(view) && view[y+1][x] == Pulled && x-1 >= 0 && view[y][x-1] == Pulled && x+1 < len(view[y]) && view[y][x+1] == Pulled) {
-		// 	continue
-		// }
-
-		y = i
-		x = b.end + 1 - squareSize
-		output += x*10000 + y
-		break
-	}
-	return output
 }
 
 func (robot *Drone) deployDrone(input []int64) int64 {

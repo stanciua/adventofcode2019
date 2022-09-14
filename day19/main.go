@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	HEIGHT int = 100
-	WIDTH  int = 100
+	HEIGHT int = 1200
+	WIDTH  int = 1200
 )
 
 const (
@@ -243,21 +243,24 @@ func (d *Drone) resetDrone(changes map[int]int64) {
 	d.vm.instructionPointer = 0
 }
 
-func (d *Drone) buildPicture(input []int64, changes map[int]int64) ([][]rune, map[int]BeamRow) {
+func (d *Drone) buildBeam(input []int64, changes map[int]int64, height int, width int) ([][]rune, map[int]BeamRow, int, int) {
 	view := make([][]rune, 0)
-	for i := 0; i < HEIGHT; i++ {
+	for i := 0; i < height; i++ {
 		line := make([]rune, 0)
 		view = append(view, line)
-		for j := 0; j < WIDTH; j++ {
+		for j := 0; j < width; j++ {
 			view[i] = append(view[i], Stationary)
 		}
 	}
 	beamRows := make(map[int]BeamRow)
+	begin := false
+	startRow := 0
+	endRow := 0
 outer:
-	for i := 0; i < HEIGHT; i++ {
+	for i := height - 1; i >= 0; i-- {
 		fj, lj := 0, 0
 		fSet := false
-		for j := 0; j < WIDTH; j++ {
+		for j := width - 1; j >= 0; j-- {
 			d.resetDrone(changes)
 			output := d.deployDrone([]int64{int64(i), int64(j)})
 			if !fSet && output == 1 {
@@ -267,51 +270,51 @@ outer:
 			if fSet && output == 0 {
 				lj = j - 1
 				fSet = false
-				beamRow := BeamRow{fj, lj}
-				fmt.Println("(", lj-fj+1, ", ", fj, ")")
+				beamRow := BeamRow{lj, fj}
 				beamRows[i] = beamRow
 				view[i][j] = DroneOutput[output]
+				// optimization for part 2
+				if height > 50 {
+					if !begin && fj-lj+1 >= 100 {
+						endRow = i
+						begin = true
+					}
+					if begin && fj-lj+1 < 100 {
+						startRow = i
+						break outer
+					}
+				}
 				continue outer
 			}
 			view[i][j] = DroneOutput[output]
 		}
 	}
 
-	return view, beamRows
+	return view, beamRows, startRow, endRow
 }
 
-func findClosestSquare(squareSize int, view [][]rune, beamRows map[int]BeamRow) int {
+func findClosestSquare(squareSize int, view [][]rune, beamRows map[int]BeamRow, startRow int, endRow int) int {
 	output := 0
-	for i := range view {
+	for i := startRow; i <= endRow; i++ {
 		b, ok := BeamRow{-1, -1}, false
-		if b, ok = beamRows[i]; !ok || b.end-b.begin < 99 {
+		if b, ok = beamRows[i]; !ok {
 			continue
 		}
 		y := i
 		x := b.end
 		// check top-right corner
-		if !(y-1 >= 0 && view[y-1][x] == Stationary && y+1 < len(view) && view[y+1][x] == Pulled && x-1 >= 0 && view[y][x-1] == Pulled && x+1 < len(view[y]) && view[y][x+1] == Stationary) {
-			continue
-		}
-		// check top-left corner
-		if b.end+1-squareSize < 0 || view[i][b.end+1-squareSize] != Pulled {
-			continue
-		}
-
-		y = i
-		x = b.end + 1 - squareSize
-		if !(y-1 >= 0 && view[y-1][x] == Pulled && y+1 < len(view) && view[y+1][x] == Pulled && x-1 >= 0 && (view[y][x-1] == Pulled || view[y][x-1] == Stationary) && x+1 < len(view[y]) && view[y][x+1] == Pulled) {
+		if !(view[y-1][x] == Stationary && view[y+1][x] == Pulled && view[y][x-1] == Pulled && view[y][x+1] == Stationary) {
 			continue
 		}
 
 		// check bottom-left corner
-		if i+squareSize-1 >= len(view) || view[i+squareSize-1][b.end+1-squareSize] != Pulled {
+		if view[i+squareSize-1][b.end+1-squareSize] != Pulled {
 			continue
 		}
 
 		y = i + squareSize - 1
 		x = b.end + 1 - squareSize
-		if !(y-1 >= 0 && view[y-1][x] == Pulled && y+1 < len(view) && view[y+1][x] == Stationary && x-1 >= 0 && view[y][x-1] == Stationary && x+1 < len(view[y]) && view[y][x+1] == Pulled) {
+		if !(view[y-1][x] == Pulled && view[y+1][x] == Stationary && view[y][x-1] == Stationary && view[y][x+1] == Pulled) {
 			continue
 		}
 
@@ -336,20 +339,11 @@ func countPoints(view [][]rune) int {
 	return count
 }
 
-func printView(view [][]rune) {
-	for i := 0; i < len(view); i++ {
-		for j := 0; j < len(view[i]); j++ {
-			fmt.Print(string(view[i][j]))
-		}
-		fmt.Println()
-	}
-}
-
 func part1(input []int64) int {
 	d := Drone{vm: NewVM()}
 	d.vm.loadProgram(input)
 	changes := d.memoryChanges(input)
-	view, _ := d.buildPicture(input, changes)
+	view, _, _, _ := d.buildBeam(input, changes, 50, 50)
 	return countPoints(view)
 }
 
@@ -357,8 +351,8 @@ func part2(input []int64) int {
 	d := Drone{vm: NewVM()}
 	d.vm.loadProgram(input)
 	changes := d.memoryChanges(input)
-	view, beamRows := d.buildPicture(input, changes)
-	return findClosestSquare(100, view, beamRows)
+	view, beamRows, startRow, endRow := d.buildBeam(input, changes, HEIGHT, WIDTH)
+	return findClosestSquare(100, view, beamRows, startRow, endRow)
 }
 
 func (robot *Drone) deployDrone(input []int64) int64 {
@@ -422,7 +416,7 @@ func main() {
 		}
 	}
 	// part 1 solution
-	// fmt.Println("The result to 1st part is: ", part1(program))
+	fmt.Println("The result to 1st part is: ", part1(program))
 
 	// part 2 solution
 	fmt.Println("The result to 2nd part is: ", part2(program))

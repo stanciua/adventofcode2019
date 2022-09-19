@@ -6,6 +6,7 @@ import (
 	"log"
 	"math"
 	"os"
+	"sort"
 	"strings"
 	"unicode"
 )
@@ -91,13 +92,14 @@ func splitPortals(m [][]rune, portals map[string]Portal) (map[Tile]string, map[T
 	}
 
 	for k, v := range portals {
-		if k == "AA" || k == "ZZ" {
-			continue
-		}
 		if _, ok := innerPortals[v.e1]; ok {
 			outerPortals[v.e2] = k
 		} else {
-			outerPortals[v.e1] = k
+			if k == "AA" || k == "ZZ" {
+				outerPortals[v.e2] = k
+			} else {
+				outerPortals[v.e1] = k
+			}
 		}
 	}
 
@@ -297,12 +299,7 @@ func isPortalEnabled(level int, t Tile, innerPortals map[Tile]string, outerPorta
 
 // 26, 396
 func minDistance(level int, source Tile, m [][]rune, innerPortals map[Tile]string, outerPortals map[Tile]string, conns map[Tile]Tile, portals map[string]Portal) int {
-	if p, ok := innerPortals[source]; ok {
-		fmt.Println(p)
-	} else if p, ok := outerPortals[source]; ok {
-		fmt.Println(p)
-	}
-	if level > 5 || outerPortals[source] == "ZZ" && isPortalEnabled(level, source, innerPortals, outerPortals) {
+	if outerPortals[source] == "ZZ" && isPortalEnabled(level, source, innerPortals, outerPortals) {
 		return 0
 	}
 
@@ -310,8 +307,10 @@ func minDistance(level int, source Tile, m [][]rune, innerPortals map[Tile]strin
 
 	reachablePortals := reachablePortals(level, source, m, innerPortals, outerPortals, conns, portals)
 	for _, p := range reachablePortals {
+		fmt.Println(portalString(p, innerPortals, outerPortals), ", level: ", level)
+	}
+	for _, p := range reachablePortals {
 		distance := p.distance
-		// if source and destination are the same check to see where are we going up or down 1 level
 		if _, ok := outerPortals[p.e2]; ok {
 			level--
 		} else if _, ok := innerPortals[p.e2]; ok {
@@ -320,7 +319,7 @@ func minDistance(level int, source Tile, m [][]rune, innerPortals map[Tile]strin
 		// when we jmp to another level we do 1 step
 		distance += 1
 
-		distance += minDistance(level, p.e2, m, innerPortals, outerPortals, conns, portals)
+		distance += minDistance(level, conns[p.e2], m, innerPortals, outerPortals, conns, portals)
 
 		if distance < min {
 			min = distance
@@ -329,6 +328,27 @@ func minDistance(level int, source Tile, m [][]rune, innerPortals map[Tile]strin
 	return min
 }
 
+func portalString(p Portal, innerPortals map[Tile]string, outerPortals map[Tile]string) string {
+	var sb strings.Builder
+	if n, ok := innerPortals[p.e1]; ok {
+		sb.WriteString(fmt.Sprint(p.e1))
+		sb.WriteString(n)
+	} else if n, ok := outerPortals[p.e1]; ok {
+		sb.WriteString(fmt.Sprint(p.e1))
+		sb.WriteString(n)
+	}
+	if n, ok := innerPortals[p.e2]; ok {
+		sb.WriteString(" -> ")
+		sb.WriteString(fmt.Sprint(p.e2))
+		sb.WriteString(n)
+	} else if n, ok := outerPortals[p.e2]; ok {
+		sb.WriteString(" -> ")
+		sb.WriteString(fmt.Sprint(p.e2))
+		sb.WriteString(n)
+	}
+
+	return sb.String()
+}
 func reachablePortals(level int, source Tile, m [][]rune, innerPortals map[Tile]string, outerPortals map[Tile]string, conns map[Tile]Tile, portals map[string]Portal) []Portal {
 	reachable := make([]Portal, 0)
 	if level == 0 {
@@ -345,19 +365,31 @@ func reachablePortals(level int, source Tile, m [][]rune, innerPortals map[Tile]
 		}
 	} else if level > 0 {
 		for p := range innerPortals {
-			if d := modifiedDijkstra(level, m, source, p, innerPortals, outerPortals, conns, portals); d != -1 {
-				reachable = append(reachable, Portal{source, p, d})
-			}
-		}
-		for p, n := range outerPortals {
-			if n == "AA" || n == "ZZ" {
+			if source == p {
 				continue
 			}
 			if d := modifiedDijkstra(level, m, source, p, innerPortals, outerPortals, conns, portals); d != -1 {
 				reachable = append(reachable, Portal{source, p, d})
 			}
 		}
+		for p, n := range outerPortals {
+			if source == p {
+				continue
+			}
+			if n == "AA" || n == "ZZ" {
+				continue
+			}
+			// fmt.Println(n, level)
+			if d := modifiedDijkstra(level, m, source, p, innerPortals, outerPortals, conns, portals); d != -1 {
+				reachable = append(reachable, Portal{source, p, d})
+			}
+		}
 	}
+
+	// sort reachable based on distance
+	sort.Slice(reachable, func(i, j int) bool {
+		return reachable[i].distance < reachable[j].distance
+	})
 
 	return reachable
 }

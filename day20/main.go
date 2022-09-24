@@ -297,35 +297,93 @@ func isPortalEnabled(level int, t Tile, innerPortals map[Tile]string, outerPorta
 	return true
 }
 
-// 26, 396
-func minDistance(level int, source Tile, m [][]rune, innerPortals map[Tile]string, outerPortals map[Tile]string, conns map[Tile]Tile, portals map[string]Portal) int {
-	if outerPortals[source] == "ZZ" && isPortalEnabled(level, source, innerPortals, outerPortals) {
-		return 0
-	}
+type VisitedKey struct {
+	t     Tile
+	level int
+}
 
-	min := math.MaxInt
+//	1  procedure BFS(G, root) is
+//	2      let Q be a queue
+//	3      label root as explored
+//	4      Q.enqueue(root)
+//	5      while Q is not empty do
+//	6          v := Q.dequeue()
+//	7          if v is the goal then
+//	8              return v
+//	9          for all edges from v to w in G.adjacentEdges(v) do
+//
+// 10              if w is not labeled as explored then
+// 11                  label w as explored
+// 12                  Q.enqueue(w)
+type Elem struct {
+	t     Tile
+	level int
+	steps int
+}
 
-	reachablePortals := reachablePortals(level, source, m, innerPortals, outerPortals, conns, portals)
-	for _, p := range reachablePortals {
-		fmt.Println(portalString(p, innerPortals, outerPortals), ", level: ", level)
-	}
-	for _, p := range reachablePortals {
-		distance := p.distance
-		if _, ok := outerPortals[p.e2]; ok {
-			level--
-		} else if _, ok := innerPortals[p.e2]; ok {
-			level++
+func bfs(source Tile, m [][]rune, innerPortals map[Tile]string, outerPortals map[Tile]string, conns map[Tile]Tile, portals map[string]Portal) int {
+	level := 0
+	visited := make(map[VisitedKey]bool)
+	Q := make([]Elem, 0)
+
+	visited[VisitedKey{source, level}] = true
+	Q = append(Q, Elem{source, level, 0})
+
+	for len(Q) > 0 {
+		// fmt.Println("Q: ", Q)
+		v := Q[0]
+		Q = Q[1:]
+
+		level = v.level
+
+		if level == 0 && outerPortals[v.t] == "ZZ" {
+			return v.steps
 		}
-		// when we jmp to another level we do 1 step
-		distance += 1
+		neighbors := modifiedFindNeighbors(level, v.t, m, portals, innerPortals, outerPortals, conns)
+		// fmt.Println("neighbors: ", neighbors)
 
-		distance += minDistance(level, conns[p.e2], m, innerPortals, outerPortals, conns, portals)
+		for _, w := range neighbors {
+			steps := v.steps + 1
+			k := VisitedKey{w, level}
+			n := w
+			if !visited[k] {
+				visited[k] = true
+				// fmt.Println("steps[k]: ", steps)
 
-		if distance < min {
-			min = distance
+				// check to see if this is a portal and we need to enter/exit a level
+				if p, ok := outerPortals[w]; ok {
+					fmt.Println("outer: ", p, level, w)
+					fmt.Println("v: ", v)
+					fmt.Println("w: ", w)
+					fmt.Println("level: ", level)
+					if p == "AA" {
+						continue
+					}
+					if p == "ZZ" {
+						// fmt.Println(v)
+						return steps
+					}
+					level--
+					n = conns[w]
+					steps++
+					fmt.Println("steps[n, level++]: ", steps)
+				} else if p, ok := innerPortals[w]; ok {
+					fmt.Println("inner: ", p, level, w)
+					fmt.Println("v: ", v)
+					fmt.Println("w: ", w)
+					fmt.Println("level: ", level)
+					level++
+					n = conns[w]
+					steps++
+					fmt.Println("steps[n, level++]: ", steps)
+				}
+				Q = append(Q, Elem{n, level, steps})
+			}
 		}
+		// fmt.Println("--------------------------------")
 	}
-	return min
+
+	return -1
 }
 
 func portalString(p Portal, innerPortals map[Tile]string, outerPortals map[Tile]string) string {
@@ -407,7 +465,7 @@ func part2(m [][]rune) int {
 	innerPortals, outerPortals := splitPortals(m, portals)
 	conns := connections(portals)
 	source := portals["AA"].e2
-	return minDistance(0, source, m, innerPortals, outerPortals, conns, portals)
+	return bfs(source, m, innerPortals, outerPortals, conns, portals)
 }
 
 func main() {

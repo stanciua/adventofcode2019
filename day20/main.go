@@ -10,14 +10,20 @@ import (
 	"unicode"
 )
 
-type Tile struct {
+type Coordinate struct {
 	y int
 	x int
 }
 
+type Tile struct {
+	t     Coordinate
+	level int
+	steps int
+}
+
 type Portal struct {
-	e1       Tile
-	e2       Tile
+	e1       Coordinate
+	e2       Coordinate
 	distance int
 }
 
@@ -28,7 +34,7 @@ const (
 )
 
 func findPortals(m [][]rune) map[string]Portal {
-	t := Tile{0, 0}
+	t := Coordinate{0, 0}
 	portals := make(map[string]Portal)
 	var sb strings.Builder
 	for i := 0; i < len(m); i++ {
@@ -37,19 +43,19 @@ func findPortals(m [][]rune) map[string]Portal {
 				// check each neighbor for upper case letter
 				// up -> down -> left -> right
 				if unicode.IsUpper(m[i-1][j]) && unicode.IsUpper(m[i-2][j]) {
-					t = Tile{i, j}
+					t = Coordinate{i, j}
 					sb.WriteRune(m[i-2][j])
 					sb.WriteRune(m[i-1][j])
 				} else if unicode.IsUpper(m[i+1][j]) && unicode.IsUpper(m[i+2][j]) {
-					t = Tile{i, j}
+					t = Coordinate{i, j}
 					sb.WriteRune(m[i+1][j])
 					sb.WriteRune(m[i+2][j])
 				} else if unicode.IsUpper(m[i][j-1]) && unicode.IsUpper(m[i][j-2]) {
-					t = Tile{i, j}
+					t = Coordinate{i, j}
 					sb.WriteRune(m[i][j-2])
 					sb.WriteRune(m[i][j-1])
 				} else if unicode.IsUpper(m[i][j+1]) && unicode.IsUpper(m[i][j+2]) {
-					t = Tile{i, j}
+					t = Coordinate{i, j}
 					sb.WriteRune(m[i][j+1])
 					sb.WriteRune(m[i][j+2])
 				} else {
@@ -57,7 +63,7 @@ func findPortals(m [][]rune) map[string]Portal {
 				}
 
 				name := sb.String()
-				t0 := Tile{0, 0}
+				t0 := Coordinate{0, 0}
 				if p, ok := portals[name]; ok {
 					if p.e1 == t0 {
 						portals[name] = Portal{t, p.e2, 0}
@@ -65,7 +71,7 @@ func findPortals(m [][]rune) map[string]Portal {
 						portals[name] = Portal{p.e1, t, 0}
 					}
 				} else {
-					portals[name] = Portal{Tile{0, 0}, t, 0}
+					portals[name] = Portal{Coordinate{0, 0}, t, 0}
 				}
 
 				sb.Reset()
@@ -75,12 +81,12 @@ func findPortals(m [][]rune) map[string]Portal {
 	return portals
 }
 
-func splitPortals(m [][]rune, portals map[string]Portal) (map[Tile]string, map[Tile]string) {
-	outerPortals, innerPortals := make(map[Tile]string), make(map[Tile]string)
+func splitPortals(m [][]rune, portals map[string]Portal) (map[Coordinate]string, map[Coordinate]string) {
+	outerPortals, innerPortals := make(map[Coordinate]string), make(map[Coordinate]string)
 	for i := 3; i < len(m)-3; i++ {
 		for j := 3; j < len(m[i])-3; j++ {
 			if m[i][j] == OpenPassage {
-				t := Tile{i, j}
+				t := Coordinate{i, j}
 				for k, v := range portals {
 					if v.e1 == t || v.e2 == t {
 						innerPortals[t] = k
@@ -105,8 +111,8 @@ func splitPortals(m [][]rune, portals map[string]Portal) (map[Tile]string, map[T
 	return innerPortals, outerPortals
 }
 
-func connections(portals map[string]Portal) map[Tile]Tile {
-	conns := make(map[Tile]Tile)
+func connections(portals map[string]Portal) map[Coordinate]Coordinate {
+	conns := make(map[Coordinate]Coordinate)
 	for k, c := range portals {
 		if k == "AA" || k == "ZZ" {
 			continue
@@ -119,13 +125,13 @@ func connections(portals map[string]Portal) map[Tile]Tile {
 	return conns
 }
 
-func dijkstra(level int, m [][]rune, source Tile, destination Tile, portals map[string]Portal, conns map[Tile]Tile, innerPortals map[Tile]string, outerPortals map[Tile]string) int {
-	dist := make(map[Tile]int)
-	Q := make([]Tile, 0)
+func dijkstra(level int, m [][]rune, source Coordinate, destination Coordinate, portals map[string]Portal, conns map[Coordinate]Coordinate, innerPortals map[Coordinate]string, outerPortals map[Coordinate]string) int {
+	dist := make(map[Coordinate]int)
+	Q := make([]Coordinate, 0)
 
 	for i := range m {
 		for j := range m[i] {
-			dist[Tile{i, j}] = math.MaxInt
+			dist[Coordinate{i, j}] = math.MaxInt
 		}
 	}
 
@@ -156,9 +162,9 @@ func dijkstra(level int, m [][]rune, source Tile, destination Tile, portals map[
 	return -1
 }
 
-func findMinDistance(Q []Tile, dist map[Tile]int) (Tile, int) {
+func findMinDistance(Q []Coordinate, dist map[Coordinate]int) (Coordinate, int) {
 	min := math.MaxInt
-	p := Tile{-1, -1}
+	p := Coordinate{-1, -1}
 	idx := 0
 	for k, v := range dist {
 		if found, i := findIndex(Q, k); found && v <= min {
@@ -170,7 +176,7 @@ func findMinDistance(Q []Tile, dist map[Tile]int) (Tile, int) {
 	return p, idx
 }
 
-func findIndex(Q []Tile, p Tile) (bool, int) {
+func findIndex(Q []Coordinate, p Coordinate) (bool, int) {
 	for i, q := range Q {
 		if q == p {
 			return true, i
@@ -180,10 +186,10 @@ func findIndex(Q []Tile, p Tile) (bool, int) {
 	return false, -1
 }
 
-func findNeighbors(level int, p Tile, m [][]rune, portals map[string]Portal, conns map[Tile]Tile, innerPortals map[Tile]string, outerPortals map[Tile]string) []Tile {
-	neighbors := make([]Tile, 0)
+func findNeighbors(level int, p Coordinate, m [][]rune, portals map[string]Portal, conns map[Coordinate]Coordinate, innerPortals map[Coordinate]string, outerPortals map[Coordinate]string) []Coordinate {
+	neighbors := make([]Coordinate, 0)
 
-	for _, t := range []Tile{{p.y - 1, p.x}, {p.y + 1, p.x}, {p.y, p.x - 1}, {p.y, p.x + 1}} {
+	for _, t := range []Coordinate{{p.y - 1, p.x}, {p.y + 1, p.x}, {p.y, p.x - 1}, {p.y, p.x + 1}} {
 		if isAllowed(level, t, m, portals, innerPortals, outerPortals, conns) {
 			if c, ok := conns[t]; ok && (innerPortals == nil || outerPortals == nil) {
 				// if this is a portal add the other connection
@@ -196,7 +202,7 @@ func findNeighbors(level int, p Tile, m [][]rune, portals map[string]Portal, con
 	return neighbors
 }
 
-func isAllowed(level int, t Tile, m [][]rune, portals map[string]Portal, innerPortals map[Tile]string, outerPortals map[Tile]string, conns map[Tile]Tile) bool {
+func isAllowed(level int, t Coordinate, m [][]rune, portals map[string]Portal, innerPortals map[Coordinate]string, outerPortals map[Coordinate]string, conns map[Coordinate]Coordinate) bool {
 	if !(t.y >= 0 && t.y < len(m) && t.x >= 0 && t.x < len(m[0])) {
 		return false
 	}
@@ -212,7 +218,7 @@ func isAllowed(level int, t Tile, m [][]rune, portals map[string]Portal, innerPo
 	return true
 }
 
-func isPortalEnabled(level int, t Tile, innerPortals map[Tile]string, outerPortals map[Tile]string) bool {
+func isPortalEnabled(level int, t Coordinate, innerPortals map[Coordinate]string, outerPortals map[Coordinate]string) bool {
 	// if inner portals or outer portals are not set, then the portals are all open
 	// and there's no level to take into accout (part 1)
 	if innerPortals == nil || outerPortals == nil {
@@ -242,24 +248,13 @@ func isPortalEnabled(level int, t Tile, innerPortals map[Tile]string, outerPorta
 	return true
 }
 
-type VisitedKey struct {
-	t     Tile
-	level int
-}
-
-type Elem struct {
-	t     Tile
-	level int
-	steps int
-}
-
-func bfs(source Tile, m [][]rune, innerPortals map[Tile]string, outerPortals map[Tile]string, conns map[Tile]Tile, portals map[string]Portal) int {
+func bfs(source Coordinate, m [][]rune, innerPortals map[Coordinate]string, outerPortals map[Coordinate]string, conns map[Coordinate]Coordinate, portals map[string]Portal) int {
 	level := 0
-	visited := make(map[VisitedKey]bool)
-	Q := make([]Elem, 0)
+	visited := make(map[Tile]bool)
+	Q := make([]Tile, 0)
 
-	visited[VisitedKey{source, level}] = true
-	Q = append(Q, Elem{source, level, 0})
+	visited[Tile{source, level, 0}] = true
+	Q = append(Q, Tile{source, level, 0})
 
 	for len(Q) > 0 {
 		v := Q[0]
@@ -274,7 +269,7 @@ func bfs(source Tile, m [][]rune, innerPortals map[Tile]string, outerPortals map
 		neighbors := findNeighbors(level, v.t, m, portals, conns, innerPortals, outerPortals)
 		for _, w := range neighbors {
 			steps := v.steps + 1
-			k := VisitedKey{w, level}
+			k := Tile{w, level, 0}
 			n := w
 			if !visited[k] {
 				visited[k] = true
@@ -297,7 +292,7 @@ func bfs(source Tile, m [][]rune, innerPortals map[Tile]string, outerPortals map
 					n = conns[w]
 					steps++
 				}
-				Q = append(Q, Elem{n, level + incr, steps})
+				Q = append(Q, Tile{n, level + incr, steps})
 			}
 		}
 	}

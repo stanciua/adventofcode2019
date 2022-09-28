@@ -6,7 +6,6 @@ import (
 	"log"
 	"math"
 	"os"
-	"sort"
 	"strings"
 	"unicode"
 )
@@ -120,7 +119,7 @@ func connections(portals map[string]Portal) map[Tile]Tile {
 	return conns
 }
 
-func modifiedDijkstra(level int, m [][]rune, source Tile, destination Tile, innerPortals map[Tile]string, outerPortals map[Tile]string, conns map[Tile]Tile, portals map[string]Portal) int {
+func dijkstra(level int, m [][]rune, source Tile, destination Tile, portals map[string]Portal, conns map[Tile]Tile, innerPortals map[Tile]string, outerPortals map[Tile]string) int {
 	dist := make(map[Tile]int)
 	Q := make([]Tile, 0)
 
@@ -141,44 +140,7 @@ func modifiedDijkstra(level int, m [][]rune, source Tile, destination Tile, inne
 
 		Q = append(Q[:idx], Q[idx+1:]...)
 
-		for _, v := range modifiedFindNeighbors(level, u, m, portals, innerPortals, outerPortals, conns) {
-			step := 1
-			if _, ok := conns[u]; ok {
-				step++
-			}
-			alt := dist[u] + step
-			if alt < dist[v] {
-				dist[v] = alt
-				Q = append(Q, v)
-			}
-		}
-	}
-
-	return -1
-}
-
-func dijkstra(m [][]rune, source Tile, destination Tile, portals map[string]Portal, conns map[Tile]Tile) int {
-	dist := make(map[Tile]int)
-	Q := make([]Tile, 0)
-
-	for i := range m {
-		for j := range m[i] {
-			dist[Tile{i, j}] = math.MaxInt
-		}
-	}
-
-	Q = append(Q, source)
-
-	dist[source] = 0
-	for len(Q) > 0 {
-		u, idx := findMinDistance(Q, dist)
-		if u == destination {
-			return dist[u]
-		}
-
-		Q = append(Q[:idx], Q[idx+1:]...)
-
-		for _, v := range findNeighbors(u, m, portals, conns) {
+		for _, v := range findNeighbors(level, u, m, portals, conns, innerPortals, outerPortals) {
 			step := 1
 			if _, ok := conns[u]; ok {
 				step++
@@ -218,24 +180,13 @@ func findIndex(Q []Tile, p Tile) (bool, int) {
 	return false, -1
 }
 
-func modifiedFindNeighbors(level int, p Tile, m [][]rune, portals map[string]Portal, innerPortals map[Tile]string, outerPortals map[Tile]string, conns map[Tile]Tile) []Tile {
+func findNeighbors(level int, p Tile, m [][]rune, portals map[string]Portal, conns map[Tile]Tile, innerPortals map[Tile]string, outerPortals map[Tile]string) []Tile {
 	neighbors := make([]Tile, 0)
 
 	for _, t := range []Tile{{p.y - 1, p.x}, {p.y + 1, p.x}, {p.y, p.x - 1}, {p.y, p.x + 1}} {
-		if isAllowedModified(level, t, m, portals, innerPortals, outerPortals, conns) {
-			neighbors = append(neighbors, t)
-		}
-	}
-	return neighbors
-}
-
-func findNeighbors(p Tile, m [][]rune, portals map[string]Portal, conns map[Tile]Tile) []Tile {
-	neighbors := make([]Tile, 0)
-
-	for _, t := range []Tile{{p.y - 1, p.x}, {p.y + 1, p.x}, {p.y, p.x - 1}, {p.y, p.x + 1}} {
-		if isAllowed(t, m, portals, conns) {
-			// if this is a portal add the other connection
-			if c, ok := conns[t]; ok {
+		if isAllowed(level, t, m, portals, innerPortals, outerPortals, conns) {
+			if c, ok := conns[t]; ok && (innerPortals == nil || outerPortals == nil) {
+				// if this is a portal add the other connection
 				neighbors = append(neighbors, c)
 			} else {
 				neighbors = append(neighbors, t)
@@ -245,19 +196,7 @@ func findNeighbors(p Tile, m [][]rune, portals map[string]Portal, conns map[Tile
 	return neighbors
 }
 
-func isAllowed(t Tile, m [][]rune, portals map[string]Portal, conns map[Tile]Tile) bool {
-	if !(t.y >= 0 && t.y < len(m) && t.x >= 0 && t.x < len(m[0])) {
-		return false
-	}
-
-	if _, ok := conns[t]; !ok && m[t.y][t.x] != OpenPassage {
-		return false
-	}
-
-	return true
-}
-
-func isAllowedModified(level int, t Tile, m [][]rune, portals map[string]Portal, innerPortals map[Tile]string, outerPortals map[Tile]string, conns map[Tile]Tile) bool {
+func isAllowed(level int, t Tile, m [][]rune, portals map[string]Portal, innerPortals map[Tile]string, outerPortals map[Tile]string, conns map[Tile]Tile) bool {
 	if !(t.y >= 0 && t.y < len(m) && t.x >= 0 && t.x < len(m[0])) {
 		return false
 	}
@@ -274,6 +213,12 @@ func isAllowedModified(level int, t Tile, m [][]rune, portals map[string]Portal,
 }
 
 func isPortalEnabled(level int, t Tile, innerPortals map[Tile]string, outerPortals map[Tile]string) bool {
+	// if inner portals or outer portals are not set, then the portals are all open
+	// and there's no level to take into accout (part 1)
+	if innerPortals == nil || outerPortals == nil {
+		return true
+	}
+
 	// if this is not a portal you can pass
 	if _, ok := innerPortals[t]; !ok {
 		if _, ok := outerPortals[t]; !ok {
@@ -302,26 +247,13 @@ type VisitedKey struct {
 	level int
 }
 
-//	1  procedure BFS(G, root) is
-//	2      let Q be a queue
-//	3      label root as explored
-//	4      Q.enqueue(root)
-//	5      while Q is not empty do
-//	6          v := Q.dequeue()
-//	7          if v is the goal then
-//	8              return v
-//	9          for all edges from v to w in G.adjacentEdges(v) do
-//
-// 10              if w is not labeled as explored then
-// 11                  label w as explored
-// 12                  Q.enqueue(w)
 type Elem struct {
 	t     Tile
 	level int
 	steps int
 }
 
-func bfs(source Tile, m [][]rune, innerPortals map[Tile]string, outerPortals map[Tile]string, conns map[Tile]Tile, portals map[string]Portal, allPortals map[Tile]string) int {
+func bfs(source Tile, m [][]rune, innerPortals map[Tile]string, outerPortals map[Tile]string, conns map[Tile]Tile, portals map[string]Portal) int {
 	level := 0
 	visited := make(map[VisitedKey]bool)
 	Q := make([]Elem, 0)
@@ -330,7 +262,6 @@ func bfs(source Tile, m [][]rune, innerPortals map[Tile]string, outerPortals map
 	Q = append(Q, Elem{source, level, 0})
 
 	for len(Q) > 0 {
-		// fmt.Println("Q: ", Q)
 		v := Q[0]
 		Q = Q[1:]
 
@@ -339,15 +270,14 @@ func bfs(source Tile, m [][]rune, innerPortals map[Tile]string, outerPortals map
 		if level == 0 && outerPortals[v.t] == "ZZ" {
 			return v.steps
 		}
-		// fmt.Println(v)
-		neighbors := modifiedFindNeighbors(level, v.t, m, portals, innerPortals, outerPortals, conns)
+
+		neighbors := findNeighbors(level, v.t, m, portals, conns, innerPortals, outerPortals)
 		for _, w := range neighbors {
 			steps := v.steps + 1
 			k := VisitedKey{w, level}
 			n := w
 			if !visited[k] {
 				visited[k] = true
-				// fmt.Println("steps[k]: ", steps)
 
 				// check to see if this is a portal and we need to enter/exit a level
 				var incr int
@@ -357,16 +287,13 @@ func bfs(source Tile, m [][]rune, innerPortals map[Tile]string, outerPortals map
 						continue
 					}
 					if p == "ZZ" {
-						// fmt.Println(v)
 						return steps
 					}
 
-					// fmt.Println("outer: ", p, ", level: ", level+incr, ", steps: ", steps)
 					n = conns[w]
 					steps++
 				} else if _, ok := innerPortals[w]; ok {
 					incr = 1
-					// fmt.Println("inner: ", p, ", level: ", level+incr, ", steps: ", steps)
 					n = conns[w]
 					steps++
 				}
@@ -378,96 +305,20 @@ func bfs(source Tile, m [][]rune, innerPortals map[Tile]string, outerPortals map
 	return -1
 }
 
-func portalString(p Portal, innerPortals map[Tile]string, outerPortals map[Tile]string) string {
-	var sb strings.Builder
-	if n, ok := innerPortals[p.e1]; ok {
-		sb.WriteString(fmt.Sprint(p.e1))
-		sb.WriteString(n)
-	} else if n, ok := outerPortals[p.e1]; ok {
-		sb.WriteString(fmt.Sprint(p.e1))
-		sb.WriteString(n)
-	}
-	if n, ok := innerPortals[p.e2]; ok {
-		sb.WriteString(" -> ")
-		sb.WriteString(fmt.Sprint(p.e2))
-		sb.WriteString(n)
-	} else if n, ok := outerPortals[p.e2]; ok {
-		sb.WriteString(" -> ")
-		sb.WriteString(fmt.Sprint(p.e2))
-		sb.WriteString(n)
-	}
-
-	return sb.String()
-}
-func reachablePortals(level int, source Tile, m [][]rune, innerPortals map[Tile]string, outerPortals map[Tile]string, conns map[Tile]Tile, portals map[string]Portal) []Portal {
-	reachable := make([]Portal, 0)
-	if level == 0 {
-		for p := range innerPortals {
-			if d := modifiedDijkstra(level, m, source, p, innerPortals, outerPortals, conns, portals); d != -1 {
-				reachable = append(reachable, Portal{source, p, d})
-			}
-		}
-
-		// also check for the destination ZZ
-		dest := portals["ZZ"].e2
-		if d := modifiedDijkstra(level, m, source, dest, innerPortals, outerPortals, conns, portals); d != -1 {
-			reachable = append(reachable, Portal{source, dest, d})
-		}
-	} else if level > 0 {
-		for p := range innerPortals {
-			if source == p {
-				continue
-			}
-			if d := modifiedDijkstra(level, m, source, p, innerPortals, outerPortals, conns, portals); d != -1 {
-				reachable = append(reachable, Portal{source, p, d})
-			}
-		}
-		for p, n := range outerPortals {
-			if source == p {
-				continue
-			}
-			if n == "AA" || n == "ZZ" {
-				continue
-			}
-			// fmt.Println(n, level)
-			if d := modifiedDijkstra(level, m, source, p, innerPortals, outerPortals, conns, portals); d != -1 {
-				reachable = append(reachable, Portal{source, p, d})
-			}
-		}
-	}
-
-	// sort reachable based on distance
-	sort.Slice(reachable, func(i, j int) bool {
-		return reachable[i].distance < reachable[j].distance
-	})
-
-	return reachable
-}
-
 func part1(m [][]rune) int {
 	portals := findPortals(m)
 	conns := connections(portals)
 	source := portals["AA"].e2
 	destination := portals["ZZ"].e2
-	return dijkstra(m, source, destination, portals, conns)
+	return dijkstra(0, m, source, destination, portals, conns, nil, nil)
 }
 
 func part2(m [][]rune) int {
 	portals := findPortals(m)
-	allPortals := make(map[Tile]string)
-	for k, v := range portals {
-		if v.e1 != (Tile{0, 0}) {
-			allPortals[v.e1] = k
-		}
-		if v.e2 != (Tile{0, 0}) {
-			allPortals[v.e2] = k
-		}
-	}
-	// fmt.Println(allPortals)
 	innerPortals, outerPortals := splitPortals(m, portals)
 	conns := connections(portals)
 	source := portals["AA"].e2
-	return bfs(source, m, innerPortals, outerPortals, conns, portals, allPortals)
+	return bfs(source, m, innerPortals, outerPortals, conns, portals)
 }
 
 func main() {

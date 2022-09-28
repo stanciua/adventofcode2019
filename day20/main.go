@@ -321,7 +321,7 @@ type Elem struct {
 	steps int
 }
 
-func bfs(source Tile, m [][]rune, innerPortals map[Tile]string, outerPortals map[Tile]string, conns map[Tile]Tile, portals map[string]Portal) int {
+func bfs(source Tile, m [][]rune, innerPortals map[Tile]string, outerPortals map[Tile]string, conns map[Tile]Tile, portals map[string]Portal, allPortals map[Tile]string) int {
 	level := 0
 	visited := make(map[VisitedKey]bool)
 	Q := make([]Elem, 0)
@@ -339,9 +339,8 @@ func bfs(source Tile, m [][]rune, innerPortals map[Tile]string, outerPortals map
 		if level == 0 && outerPortals[v.t] == "ZZ" {
 			return v.steps
 		}
+		// fmt.Println(v)
 		neighbors := modifiedFindNeighbors(level, v.t, m, portals, innerPortals, outerPortals, conns)
-		// fmt.Println("neighbors: ", neighbors)
-
 		for _, w := range neighbors {
 			steps := v.steps + 1
 			k := VisitedKey{w, level}
@@ -351,11 +350,9 @@ func bfs(source Tile, m [][]rune, innerPortals map[Tile]string, outerPortals map
 				// fmt.Println("steps[k]: ", steps)
 
 				// check to see if this is a portal and we need to enter/exit a level
+				var incr int
 				if p, ok := outerPortals[w]; ok {
-					fmt.Println("outer: ", p, level, w)
-					fmt.Println("v: ", v)
-					fmt.Println("w: ", w)
-					fmt.Println("level: ", level)
+					incr = -1
 					if p == "AA" {
 						continue
 					}
@@ -363,24 +360,19 @@ func bfs(source Tile, m [][]rune, innerPortals map[Tile]string, outerPortals map
 						// fmt.Println(v)
 						return steps
 					}
-					level--
+
+					// fmt.Println("outer: ", p, ", level: ", level+incr, ", steps: ", steps)
 					n = conns[w]
 					steps++
-					fmt.Println("steps[n, level++]: ", steps)
-				} else if p, ok := innerPortals[w]; ok {
-					fmt.Println("inner: ", p, level, w)
-					fmt.Println("v: ", v)
-					fmt.Println("w: ", w)
-					fmt.Println("level: ", level)
-					level++
+				} else if _, ok := innerPortals[w]; ok {
+					incr = 1
+					// fmt.Println("inner: ", p, ", level: ", level+incr, ", steps: ", steps)
 					n = conns[w]
 					steps++
-					fmt.Println("steps[n, level++]: ", steps)
 				}
-				Q = append(Q, Elem{n, level, steps})
+				Q = append(Q, Elem{n, level + incr, steps})
 			}
 		}
-		// fmt.Println("--------------------------------")
 	}
 
 	return -1
@@ -462,10 +454,20 @@ func part1(m [][]rune) int {
 
 func part2(m [][]rune) int {
 	portals := findPortals(m)
+	allPortals := make(map[Tile]string)
+	for k, v := range portals {
+		if v.e1 != (Tile{0, 0}) {
+			allPortals[v.e1] = k
+		}
+		if v.e2 != (Tile{0, 0}) {
+			allPortals[v.e2] = k
+		}
+	}
+	// fmt.Println(allPortals)
 	innerPortals, outerPortals := splitPortals(m, portals)
 	conns := connections(portals)
 	source := portals["AA"].e2
-	return bfs(source, m, innerPortals, outerPortals, conns, portals)
+	return bfs(source, m, innerPortals, outerPortals, conns, portals, allPortals)
 }
 
 func main() {

@@ -19,12 +19,69 @@ type Technique struct {
 	n         int
 }
 
-const MAX_SIZE int64 = 10007
+const (
+	Forward  int64 = 0
+	Backward int64 = 1
+)
+
+const MAX_SIZE int64 = 10
 
 func newStack(cards []int64) {
 	for i := 0; i < len(cards)/2; i++ {
 		cards[len(cards)-i-1], cards[i] = cards[i], cards[len(cards)-i-1]
 	}
+}
+
+// Top          Bottom
+// 0 1 2 3 4 5 6 7 8 9   Your deck
+//
+//	                    New stack
+//
+//	1 2 3 4 5 6 7 8 9   Your deck
+//	                0   New stack
+//
+//	  2 3 4 5 6 7 8 9   Your deck
+//	              1 0   New stack
+//
+//	    3 4 5 6 7 8 9   Your deck
+//	            2 1 0   New stack
+//
+// Several steps later...
+//
+//	                9   Your deck
+//	8 7 6 5 4 3 2 1 0   New stack
+//
+//	                    Your deck
+//
+// 9 8 7 6 5 4 3 2 1 0   New stack
+func newStackFast(dir, index, pos int64) (int64, int64, int64) {
+	if dir == Forward {
+		dir = Backward
+		pos += -1
+		index = MAX_SIZE - 1
+	} else {
+		dir = Forward
+		pos += 1
+		index = 0
+	}
+
+	return dir, index, pos
+}
+
+// Top          Bottom
+// 0 1 2 3 4 5 6 7 8 9   Your deck
+//
+//	3 4 5 6 7 8 9   Your deck
+//
+// 0 1 2                 Cut cards
+//
+// 3 4 5 6 7 8 9         Your deck
+//
+//	0 1 2   Cut cards
+//
+// 3 4 5 6 7 8 9 0 1 2   Your deck
+func cutNCardsFast(dir, index, pos int64) (int64, int64) {
+	return 0, 0
 }
 
 func cutNCards(cards *[]int64, n int) {
@@ -84,32 +141,20 @@ func part1(techniques []Technique) int {
 }
 
 func part2(techniques []Technique) int64 {
-	cards := make([]int64, 0)
-	// add the first approx 1 milion records
-	for i := int64(0); i < MAX_SIZE; i++ {
-		cards = append(cards, i)
-	}
-	// add the last approx 1 milion records
-	// for i := int64(119315717514047) - MAX_SIZE; i < 119315717514047; i++ {
-	// 	cards = append(cards, i)
-	// }
-	curr := cards[2020]
+	var dir int64 = 1
+	var index int64 = 0
+	var pos int64 = 2019
 	for _, t := range techniques {
 		if t.technique == Cut {
-			cutNCards(&cards, t.n)
+			// cutNCards(&cards, t.n)
 		} else if t.technique == Increment {
-			incrementNCards(&cards, t.n)
+			// incrementNCards(&cards, t.n)
 		} else {
-			newStack(cards)
-		}
-
-		if curr != cards[2020] {
-			fmt.Println(t.technique, ": ", cards[2020])
-			curr = cards[2020]
+			dir, index, pos = newStackFast(dir, index, pos)
+			fmt.Println(index, pos)
 		}
 	}
-
-	return cards[2020]
+	return 0
 }
 
 func main() {

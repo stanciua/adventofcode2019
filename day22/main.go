@@ -1,9 +1,13 @@
 package main
 
+// Part 2 solved thanks to this Modulo Arithmetic tutorial:
+// https://codeforces.com/blog/entry/72593
+
 import (
 	"bufio"
 	"fmt"
 	"log"
+	"math/big"
 	"os"
 	"strings"
 )
@@ -19,142 +23,142 @@ type Technique struct {
 	n         int
 }
 
-const (
-	Forward  int64 = 0
-	Backward int64 = 1
-)
+const MAX_SIZE int64 = 10007
 
-const MAX_SIZE int64 = 10
+func part1(techniques []Technique) int64 {
+	fa, fb := getAB(techniques[0])
+	m := big.NewInt(MAX_SIZE)
 
-func newStack(cards []int64) {
-	for i := 0; i < len(cards)/2; i++ {
-		cards[len(cards)-i-1], cards[i] = cards[i], cards[len(cards)-i-1]
+	for i := 1; i < len(techniques); i++ {
+		a, b := getAB(techniques[i])
+		// fa, fb = (fa*a)%m, (fb*a+b)%m
+		fa = fa.Mul(fa, a)
+		fa = fa.Mod(fa, m)
+
+		fb = fb.Mul(fb, a)
+		fb = fb.Add(fb, b)
+		fb = fb.Mod(fb, m)
 	}
+
+	fmt.Println(fa, fb)
+	fa = fa.Mul(fa, big.NewInt(2019))
+	fa = fa.Add(fa, fb)
+	fa = fa.Mod(fa, m)
+
+	return fa.Int64()
 }
 
-// Top          Bottom
-// 0 1 2 3 4 5 6 7 8 9   Your deck
-//
-//	                    New stack
-//
-//	1 2 3 4 5 6 7 8 9   Your deck
-//	                0   New stack
-//
-//	  2 3 4 5 6 7 8 9   Your deck
-//	              1 0   New stack
-//
-//	    3 4 5 6 7 8 9   Your deck
-//	            2 1 0   New stack
-//
-// Several steps later...
-//
-//	                9   Your deck
-//	8 7 6 5 4 3 2 1 0   New stack
-//
-//	                    Your deck
-//
-// 9 8 7 6 5 4 3 2 1 0   New stack
-func newStackFast(dir, index, pos int64) (int64, int64, int64) {
-	if dir == Forward {
-		dir = Backward
-		pos += -1
-		index = MAX_SIZE - 1
+func getAB(t Technique) (*big.Int, *big.Int) {
+	a, b := int64(0), int64(0)
+	if t.technique == Cut {
+		a, b = 1, int64(-t.n)
+	} else if t.technique == Increment {
+		a, b = int64(t.n), 0
 	} else {
-		dir = Forward
-		pos += 1
-		index = 0
+		a, b = -1, -1
 	}
-
-	return dir, index, pos
+	return big.NewInt(a), big.NewInt(b)
 }
 
-// Top          Bottom
-// 0 1 2 3 4 5 6 7 8 9   Your deck
-//
-//	3 4 5 6 7 8 9   Your deck
-//
-// 0 1 2                 Cut cards
-//
-// 3 4 5 6 7 8 9         Your deck
-//
-//	0 1 2   Cut cards
-//
-// 3 4 5 6 7 8 9 0 1 2   Your deck
-func cutNCardsFast(dir, index, pos int64) (int64, int64) {
-	return 0, 0
-}
-
-func cutNCards(cards *[]int64, n int) {
-	if n >= 0 {
-		cutted := (*cards)[:n]
-		*cards = (*cards)[n:]
-		*cards = append(*cards, cutted...)
-	} else {
-		cutted := (*cards)[len(*cards)+n:]
-		*cards = (*cards)[:len(*cards)+n]
-		*cards = append(cutted, *cards...)
-	}
-}
-
-func incrementNCards(cards *[]int64, n int) {
-	noCards := len(*cards)
-	remaining := noCards
-	incremented := append([]int64(nil), (*cards)...)
-	incremented[0] = (*cards)[0]
-	i := 1
-	j := 0
-	remaining--
-	for remaining > 0 {
-		j += n
-		incremented[j%noCards] = (*cards)[i]
-		i++
-		remaining--
-	}
-
-	for i := range incremented {
-		(*cards)[i] = incremented[i]
-	}
-}
-
-func part1(techniques []Technique) int {
-	cards := make([]int64, 0)
-	for i := int64(0); i < MAX_SIZE; i++ {
-		cards = append(cards, i)
-	}
-	for _, t := range techniques {
-		if t.technique == Cut {
-			cutNCards(&cards, t.n)
-		} else if t.technique == Increment {
-			incrementNCards(&cards, t.n)
-		} else {
-			newStack(cards)
-		}
-	}
-
-	for i, c := range cards {
-		if c == 2019 {
-			return i
-		}
-	}
-
-	return -1
-}
-
+// 49283089762689
 func part2(techniques []Technique) int64 {
-	var dir int64 = 1
-	var index int64 = 0
-	var pos int64 = 2019
-	for _, t := range techniques {
-		if t.technique == Cut {
-			// cutNCards(&cards, t.n)
-		} else if t.technique == Increment {
-			// incrementNCards(&cards, t.n)
-		} else {
-			dir, index, pos = newStackFast(dir, index, pos)
-			fmt.Println(index, pos)
-		}
+	t1 := big.NewInt(1)
+	t2 := t1.Add(t1, t1)
+	fmt.Println(t1.Int64(), t2.Int64())
+	fa, fb := getAB(techniques[0])
+	m := big.NewInt(119315717514047)
+	n := int64(101741582076661)
+
+	for i := 1; i < len(techniques); i++ {
+		a, b := getAB(techniques[i])
+		fa = fa.Mul(fa, a)
+		fa = fa.Mod(fa, m)
+
+		fb = fb.Mul(fb, a)
+		fb = fb.Add(fb, b)
+		fb = fb.Mod(fb, m)
 	}
-	return 0
+
+	a, b := geometric_series(fa, fb, m, n)
+	fmt.Println("geometric_series: ", a, b)
+	fa, fb = pow_compose(fa, fb, m, n)
+	fmt.Println("pow_compose: ", fa, fb)
+	
+	inv := pow_mod(fa, m, m.Int64()-2)
+	fb = fb.Sub(big.NewInt(2020), fb)
+	fb = fb.Mod(fb, m)
+	fb = fb.Mul(fb, inv)
+	fb = fb.Mod(fb, m)
+
+	return fb.Int64()
+}
+
+// 𝐹𝑘(𝑥)=𝑎𝑘𝑥+𝑏(1−𝑎𝑘)1−𝑎  mod 𝑚
+
+func geometric_series(fa, fb, m *big.Int, k int64) (*big.Int, *big.Int) {
+	aK := pow_mod(fa, m, k)
+	Fa := big.NewInt(aK.Int64())
+	Fa = Fa.Sub(big.NewInt(1), aK)
+	Fa = Fa.Mul(Fa, fb)
+	Fa = Fa.Mod(Fa, m)
+
+	a := big.NewInt(fa.Int64())
+	a = a.Sub(big.NewInt(1) , fa)
+	inv := pow_mod(a, m, m.Int64()-2)
+	inv = inv.Mod(inv, m)
+
+	Fa = Fa.Mul(Fa, inv)
+	Fa = Fa.Mod(Fa, m)
+
+
+	return aK, Fa
+}
+
+func pow_mod(x, m *big.Int, n int64) *big.Int {
+	y := big.NewInt(int64(1))
+	X := big.NewInt(x.Int64())
+	for n > 0 {
+		if n%2 != 0 {
+			y = y.Mul(y, X)
+			y = y.Mod(y, m)
+		}
+		n = n / 2
+		X = X.Mul(X, X)
+		X = X.Mod(X, m)
+	}
+	return y
+}
+
+func pow_compose(fa, fb, m *big.Int, k int64) (*big.Int, *big.Int) {
+	Fa := big.NewInt(fa.Int64())
+	Fb := big.NewInt(fb.Int64())
+	ga := big.NewInt(1)
+	gb := big.NewInt(0)
+
+	// (𝑎,𝑏) ;(𝑐,𝑑)=(𝑎𝑐 mod 𝑚,𝑏𝑐+𝑑  mod 𝑚)
+	for k > 0 {
+		if k%2 != 0 {
+			ga = ga.Mul(ga, Fa)
+			ga = ga.Mod(ga, m)
+			gb = gb.Mul(gb, Fa)
+			gb = gb.Mod(gb, m)
+			gb = gb.Add(gb, Fb)
+			gb = gb.Mod(gb, m)
+		}
+
+		k = k / 2
+
+		a, b := big.NewInt(Fa.Int64()), big.NewInt(Fb.Int64())
+		Fa = Fa.Mul(a, a)
+		Fa = Fa.Mod(Fa, m)
+
+		Fb = Fb.Mul(b, a)
+		Fb = Fb.Mod(Fb, m)
+		Fb = Fb.Add(Fb, b)
+		Fb = Fb.Mod(Fb, m)
+	}
+
+	return ga, gb
 }
 
 func main() {
@@ -198,6 +202,4 @@ func main() {
 
 	// part 2 solution
 	fmt.Println("The result to 2nd part is: ", part2(techniques))
-	fmt.Println("The result to 2nd part is: ", 49283089762689)
-
 }

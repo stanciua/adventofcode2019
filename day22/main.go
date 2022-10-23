@@ -19,146 +19,124 @@ const (
 )
 
 type Technique struct {
-	technique int
-	n         int
+	t int
+	n int
 }
 
-const MAX_SIZE int64 = 10007
+// Linear Congruence Functions f(x) = ax + b mod m, is represented as
+type Lcf struct {
+	a *big.Int
+	b *big.Int
+	m *big.Int
+}
+
+const (
+	DECK_SIZE_1 int64 = 10007
+	DECK_SIZE_2 int64 = 119315717514047
+	NO_SHUFFLES int64 = 101741582076661
+)
+
+func composeLcf(lcf0, lcf1 Lcf) Lcf {
+	lcf0.a = lcf0.a.Mul(lcf0.a, lcf1.a)
+	lcf0.a = lcf0.a.Mod(lcf0.a, lcf0.m)
+
+	lcf0.b = lcf0.b.Mul(lcf0.b, lcf1.a)
+	lcf0.b = lcf0.b.Add(lcf0.b, lcf1.b)
+	lcf0.b = lcf0.b.Mod(lcf0.b, lcf0.m)
+
+	return Lcf{lcf0.a, lcf0.b, lcf0.m}
+}
+
+// We are solving this congruence: f(x) = ax + b mod m
+func solveLinearCongruence(lcf Lcf, x *big.Int) int64 {
+	lcf.a = lcf.a.Mul(lcf.a, x)
+	lcf.a = lcf.a.Add(lcf.a, lcf.b)
+	lcf.a = lcf.a.Mod(lcf.a, lcf.m)
+
+	return lcf.a.Int64()
+}
 
 func part1(techniques []Technique) int64 {
-	fa, fb := getAB(techniques[0])
-	m := big.NewInt(MAX_SIZE)
+	m := big.NewInt(DECK_SIZE_1)
+	lcfn := getLcf(techniques[0], m)
 
 	for i := 1; i < len(techniques); i++ {
-		a, b := getAB(techniques[i])
-		// fa, fb = (fa*a)%m, (fb*a+b)%m
-		fa = fa.Mul(fa, a)
-		fa = fa.Mod(fa, m)
-
-		fb = fb.Mul(fb, a)
-		fb = fb.Add(fb, b)
-		fb = fb.Mod(fb, m)
+		lcfi := getLcf(techniques[i], m)
+		lcfn = composeLcf(lcfn, lcfi)
 	}
 
-	fmt.Println(fa, fb)
-	fa = fa.Mul(fa, big.NewInt(2019))
-	fa = fa.Add(fa, fb)
-	fa = fa.Mod(fa, m)
-
-	return fa.Int64()
+	return solveLinearCongruence(lcfn, big.NewInt(2019))
 }
 
-func getAB(t Technique) (*big.Int, *big.Int) {
+func getLcf(t Technique, m *big.Int) Lcf {
 	a, b := int64(0), int64(0)
-	if t.technique == Cut {
+	if t.t == Cut {
 		a, b = 1, int64(-t.n)
-	} else if t.technique == Increment {
+	} else if t.t == Increment {
 		a, b = int64(t.n), 0
 	} else {
 		a, b = -1, -1
 	}
-	return big.NewInt(a), big.NewInt(b)
+	return Lcf{big.NewInt(a), big.NewInt(b), m}
 }
 
-// 49283089762689
+// We are solving this linear inverted congruence: F^-k(x) = (x - b) * a^-1 mod m
+// which represents the inverse of F^k(x) = ax + b mod m
+func solveLinearCongruenceInverted(lcf Lcf, x *big.Int) int64 {
+	inv := pow_mod(new(big.Int).Set(lcf.a), lcf.m, lcf.m.Int64()-2)
+	lcf.b = lcf.b.Sub(x, lcf.b)
+	lcf.b = lcf.b.Mod(lcf.b, lcf.m)
+	lcf.b = lcf.b.Mul(lcf.b, inv)
+	lcf.b = lcf.b.Mod(lcf.b, lcf.m)
+
+	return lcf.b.Int64()
+}
+
 func part2(techniques []Technique) int64 {
-	t1 := big.NewInt(1)
-	t2 := t1.Add(t1, t1)
-	fmt.Println(t1.Int64(), t2.Int64())
-	fa, fb := getAB(techniques[0])
-	m := big.NewInt(119315717514047)
-	n := int64(101741582076661)
+	m := big.NewInt(DECK_SIZE_2)
+	n := int64(NO_SHUFFLES)
+	lcfn := getLcf(techniques[0], m)
 
 	for i := 1; i < len(techniques); i++ {
-		a, b := getAB(techniques[i])
-		fa = fa.Mul(fa, a)
-		fa = fa.Mod(fa, m)
-
-		fb = fb.Mul(fb, a)
-		fb = fb.Add(fb, b)
-		fb = fb.Mod(fb, m)
+		lcfi := getLcf(techniques[i], m)
+		lcfn = composeLcf(lcfn, lcfi)
 	}
 
-	a, b := geometric_series(fa, fb, m, n)
-	fmt.Println("geometric_series: ", a, b)
-	fa, fb = pow_compose(fa, fb, m, n)
-	fmt.Println("pow_compose: ", fa, fb)
-	
-	inv := pow_mod(fa, m, m.Int64()-2)
-	fb = fb.Sub(big.NewInt(2020), fb)
-	fb = fb.Mod(fb, m)
-	fb = fb.Mul(fb, inv)
-	fb = fb.Mod(fb, m)
+	lcfFinal := pow_compose(lcfn, n)
 
-	return fb.Int64()
+	return solveLinearCongruenceInverted(lcfFinal, big.NewInt(2020))
 }
 
-// 𝐹𝑘(𝑥)=𝑎𝑘𝑥+𝑏(1−𝑎𝑘)1−𝑎  mod 𝑚
-
-func geometric_series(fa, fb, m *big.Int, k int64) (*big.Int, *big.Int) {
-	aK := pow_mod(fa, m, k)
-	Fa := big.NewInt(aK.Int64())
-	Fa = Fa.Sub(big.NewInt(1), aK)
-	Fa = Fa.Mul(Fa, fb)
-	Fa = Fa.Mod(Fa, m)
-
-	a := big.NewInt(fa.Int64())
-	a = a.Sub(big.NewInt(1) , fa)
-	inv := pow_mod(a, m, m.Int64()-2)
-	inv = inv.Mod(inv, m)
-
-	Fa = Fa.Mul(Fa, inv)
-	Fa = Fa.Mod(Fa, m)
-
-
-	return aK, Fa
-}
-
-func pow_mod(x, m *big.Int, n int64) *big.Int {
+func pow_mod(x, m *big.Int, k int64) *big.Int {
 	y := big.NewInt(int64(1))
-	X := big.NewInt(x.Int64())
-	for n > 0 {
-		if n%2 != 0 {
-			y = y.Mul(y, X)
+	for k > 0 {
+		if k%2 != 0 {
+			y = y.Mul(y, x)
 			y = y.Mod(y, m)
 		}
-		n = n / 2
-		X = X.Mul(X, X)
-		X = X.Mod(X, m)
+		k = k / 2
+		x = x.Mul(x, x)
+		x = x.Mod(x, m)
 	}
 	return y
 }
 
-func pow_compose(fa, fb, m *big.Int, k int64) (*big.Int, *big.Int) {
-	Fa := big.NewInt(fa.Int64())
-	Fb := big.NewInt(fb.Int64())
-	ga := big.NewInt(1)
-	gb := big.NewInt(0)
+func pow_compose(lcf Lcf, k int64) Lcf {
+	lcff := Lcf{new(big.Int).Set(lcf.a), new(big.Int).Set(lcf.b), lcf.m}
+	lcfg := Lcf{big.NewInt(1), big.NewInt(0), lcf.m}
 
-	// (𝑎,𝑏) ;(𝑐,𝑑)=(𝑎𝑐 mod 𝑚,𝑏𝑐+𝑑  mod 𝑚)
 	for k > 0 {
 		if k%2 != 0 {
-			ga = ga.Mul(ga, Fa)
-			ga = ga.Mod(ga, m)
-			gb = gb.Mul(gb, Fa)
-			gb = gb.Mod(gb, m)
-			gb = gb.Add(gb, Fb)
-			gb = gb.Mod(gb, m)
+			lcfg = composeLcf(lcfg, lcff)
 		}
 
 		k = k / 2
 
-		a, b := big.NewInt(Fa.Int64()), big.NewInt(Fb.Int64())
-		Fa = Fa.Mul(a, a)
-		Fa = Fa.Mod(Fa, m)
-
-		Fb = Fb.Mul(b, a)
-		Fb = Fb.Mod(Fb, m)
-		Fb = Fb.Add(Fb, b)
-		Fb = Fb.Mod(Fb, m)
+		lcffCopy := Lcf{new(big.Int).Set(lcff.a), new(big.Int).Set(lcff.b), lcff.m}
+		lcff = composeLcf(lcff, lcffCopy)
 	}
 
-	return ga, gb
+	return lcfg
 }
 
 func main() {

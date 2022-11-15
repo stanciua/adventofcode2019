@@ -1,0 +1,192 @@
+[{0 0}]
+{0 0} {0 0} UNKNOWN 
+
+
+== Hull Breach ==
+You got in through a hole in the floor here. To keep your ship from also freezing, the hole has been sealed.
+
+Doors here lead:
+- south
+
+Command?
+
+******queued:  {0 1} ******
+_____________________________________
+[{0 1}]
+{0 1} {0 0} south 
+
+
+== Engineering ==
+You see a whiteboard with plans for Springdroid v2.
+
+Doors here lead:
+- north
+- south
+- west
+
+Items here:
+- infinite loop
+
+Command?
+
+******queued:  {0 0} ******
+******queued:  {0 2} ******
+******queued:  {-1 1} ******
+_____________________________________
+[{0 0} {0 2} {-1 1}]
+{0 0} {0 1} north 
+
+
+
+== Engineering ==
+You see a whiteboard with plans for Springdroid v2.
+
+Doors here lead:
+- north
+- south
+- west
+
+Items here:
+- infinite loop
+
+Command?
+
+******queued:  {0 -1} ******
+******queued:  {0 1} ******
+******queued:  {-1 0} ******
+_____________________________________
+[{0 2} {-1 1} {0 -1} {0 1} {-1 0}]
+{0 2} {0 1} south 
+
+
+
+== Engineering ==
+You see a whiteboard with plans for Springdroid v2.
+
+Doors here lead:
+- north
+- south
+- west
+
+Items here:
+- infinite loop
+
+Command?
+
+******queued:  {0 1} ******
+******queued:  {0 3} ******
+******queued:  {-1 2} ******
+_____________________________________
+[{-1 1} {0 -1} {0 1} {-1 0} {0 1} {0 3} {-1 2}]
+{-1 1} {0 1} west 
+
+
+
+== Science Lab ==
+You see evidence here of prototype polymer design work.
+
+Doors here lead:
+- north
+- east
+
+Command?
+
+******queued:  {-1 0} ******
+******queued:  {0 1} ******
+_____________________________________
+[{0 -1} {0 1} {-1 0} {0 1} {0 3} {-1 2} {-1 0} {0 1}]
+{0 -1} {0 0} north 
+
+
+
+== Warp Drive Maintenance ==
+It appears to be working normally.
+
+Doors here lead:
+- north
+- south
+
+Items here:
+- molten lava
+
+Command?
+
+_____________________________________
+[{0 1} {-1 0} {0 1} {0 3} {-1 2} {-1 0} {0 1}]
+{0 1} {-1 1} east 
+
+You can't go that way.
+
+Command?
+
+_____________________________________
+[{-1 0} {0 1} {0 3} {-1 2} {-1 0} {0 1}]
+{-1 0} {-1 1} north 
+
+You can't go that way.
+
+Command?
+
+_____________________________________
+[{0 1} {0 3} {-1 2} {-1 0} {0 1}]
+{0 1} {-1 1} east 
+
+You can't go that way.
+
+Command?
+
+_____________________________________
+[{0 3} {-1 2} {-1 0} {0 1}]
+{0 3} {0 2} south 
+
+
+
+== Warp Drive Maintenance ==
+It appears to be working normally.
+
+Doors here lead:
+- north
+- south
+
+Items here:
+- molten lava
+
+Command?
+
+_____________________________________
+[{-1 2} {-1 0} {0 1}]
+{-1 2} {0 2} west 
+
+You can't go that way.
+
+Command?
+
+_____________________________________
+[{-1 0} {0 1}]
+{-1 0} {-1 1} north 
+
+
+
+== Warp Drive Maintenance ==
+It appears to be working normally.
+
+Doors here lead:
+- north
+- south
+
+Items here:
+- molten lava
+
+Command?
+
+_____________________________________
+[{0 1}]
+{0 1} {-1 1} east 
+
+You can't go that way.
+
+Command?
+
+_____________________________________
+The result to 1st part is:  -1
+The result to 2nd part is:  -1

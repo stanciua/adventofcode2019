@@ -7,6 +7,9 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	// "github.com/k0kubun/pp"
+	// "github.com/k0kubun/pp"
 )
 
 const (
@@ -19,6 +22,10 @@ const (
 	EasterEgg          int = 6
 	FestiveHat         int = 7
 	GiantElectromagnet int = 8
+	Photons            int = 9
+	Asterisk           int = 10
+	Jam                int = 11
+	Tambourine         int = 12
 )
 
 const (
@@ -33,11 +40,16 @@ type Pos struct {
 	y int
 }
 
+type Move struct {
+	pos Pos
+	dir int
+}
+
 type Surrounding struct {
-	pos                    Pos
+	m                      Move
 	doors                  [4]int
-	items                  [16]bool
-	inventory              [16]bool
+	items                  [13]bool
+	inventory              [12]bool
 	locked                 bool
 	festiveHatFlag         bool
 	security               bool
@@ -243,14 +255,13 @@ func (vm *VM) executeCurrentInstruction() {
 	}
 }
 
-func parseOutput(pos Pos, output string, parents map[Pos]Pos) Surrounding {
-	fmt.Println(pos, parents[pos], dirStr(findDir(parents[pos], pos)), output)
-	surrounding := Surrounding{pos, [4]int{}, [16]bool{}, [16]bool{}, false,false, false, false}
+func parseOutput(m Move, output string) Surrounding {
+	fmt.Println(m, output, m.dir)
+	surrounding := Surrounding{m, [4]int{}, [13]bool{}, [12]bool{}, false, false, false, false}
 	lines := strings.Split(output, "\n")
 	doorsFlag := false
 	doors := make([]int, 0)
 	itemsFlag := false
-	items := make([]int, 0)
 	lockedFlag := false
 	securityFlag := false
 	inventoryFlag := false
@@ -296,13 +307,25 @@ func parseOutput(pos Pos, output string, parents map[Pos]Pos) Surrounding {
 			}
 		}
 
+		// Antenna            int = 0
+		// EscapePod          int = 1
+		// InfiniteLoop       int = 2
+		// SpaceHeater        int = 3
+		// MoltenLava         int = 4
+		// FixedPoint         int = 5
+		// EasterEgg          int = 6
+		// FestiveHat         int = 7
+		// GiantElectromagnet int = 8
+		// Photons            int = 9
+		// Asterisk           int = 10
+		// Jam                int = 11
 		if itemsFlag {
-			if strings.HasPrefix(l, "- infinite loop") {
-				surrounding.items[InfiniteLoop] = true
+			if strings.HasPrefix(l, "- antenna") {
+				surrounding.items[Antenna] = true
 			} else if strings.HasPrefix(l, "- escape pod") {
 				surrounding.items[EscapePod] = true
-			} else if strings.HasPrefix(l, "- antenna") {
-				surrounding.items[Antenna] = true
+			} else if strings.HasPrefix(l, "- infinite loop") {
+				surrounding.items[InfiniteLoop] = true
 			} else if strings.HasPrefix(l, "- space heater") {
 				surrounding.items[SpaceHeater] = true
 			} else if strings.HasPrefix(l, "- molten lava") {
@@ -312,15 +335,19 @@ func parseOutput(pos Pos, output string, parents map[Pos]Pos) Surrounding {
 			} else if strings.HasPrefix(l, "- easter egg") {
 				surrounding.items[EasterEgg] = true
 			} else if strings.HasPrefix(l, "- festive hat") {
-				if festiveHatFlag {
-					festiveHatFlag = false
-				}
 				surrounding.items[FestiveHat] = true
 			} else if strings.HasPrefix(l, "- giant electromagnet") {
 				surrounding.items[GiantElectromagnet] = true
+			} else if strings.HasPrefix(l, "- photons") {
+				surrounding.items[Photons] = true
+			} else if strings.HasPrefix(l, "- asterisk") {
+				surrounding.items[Asterisk] = true
+			} else if strings.HasPrefix(l, "- jam") {
+				surrounding.items[Jam] = true
+			} else if strings.HasPrefix(l, "- tambourine") {
+				surrounding.items[Tambourine] = true
 			} else if strings.HasPrefix(l, "- ") {
-				fmt.Println(l)
-				items = append(items, 0)
+				panic(fmt.Sprintln("unknown items found: ", l))
 			} else {
 				itemsFlag = false
 				continue
@@ -365,8 +392,8 @@ func parseOutput(pos Pos, output string, parents map[Pos]Pos) Surrounding {
 	return surrounding
 }
 
-func adjacentEdges(s *Surrounding) []Pos {
-	positions := make([]Pos, 0)
+func adjacentEdges(s *Surrounding) []Move {
+	moves := make([]Move, 0)
 	for _, d := range s.doors {
 		if d == 0 {
 			continue
@@ -374,17 +401,17 @@ func adjacentEdges(s *Surrounding) []Pos {
 
 		switch d {
 		case North:
-			positions = append(positions, Pos{s.pos.x, s.pos.y - 1})
+			moves = append(moves, Move{Pos{s.m.pos.x, s.m.pos.y - 1}, d})
 		case South:
-			positions = append(positions, Pos{s.pos.x, s.pos.y + 1})
+			moves = append(moves, Move{Pos{s.m.pos.x, s.m.pos.y + 1}, d})
 		case West:
-			positions = append(positions, Pos{s.pos.x - 1, s.pos.y})
+			moves = append(moves, Move{Pos{s.m.pos.x - 1, s.m.pos.y}, d})
 		case East:
-			positions = append(positions, Pos{s.pos.x + 1, s.pos.y})
+			moves = append(moves, Move{Pos{s.m.pos.x + 1, s.m.pos.y}, d})
 		}
 	}
 
-	return positions
+	return moves
 }
 
 func findDir(from Pos, to Pos) int {
@@ -431,9 +458,8 @@ func dirStr(dir int) string {
 	return ds
 }
 
-func (d *Droid) move(pos Pos, parents map[Pos]Pos) {
+func (d *Droid) move(dir int) {
 	var m string
-	dir := findDir(parents[pos], pos)
 	switch dir {
 	case North:
 		m = "north\n"
@@ -452,117 +478,101 @@ func (d *Droid) move(pos Pos, parents map[Pos]Pos) {
 	}
 }
 
-// func (d *Droid) unlock(p Pos, surroundings map[Pos]Surrounding, pastItems map[Pos]map[int]bool) {
-// 	// check to see if the door is locked
-// 	for _, i := range [...]int{Antenna, EscapePod, InfiniteLoop, SpaceHeater, MoltenLava} {
-// 		if pastItems[p][i] {
-// 			continue
-// 		}
-// 		s := surroundings[p]
-// 		d.take(s)
-// 		d.move(p, parents)
-// 		s = parseOutput(p, d.output())
-// 		if s.locked == false {
-// 			pastItems[p][i] = true
-// 			break
-// 		}
-// 	}
-// }
+func (d *Droid) searchEnv(m Move, explored map[[32]rune]bool, neighbors map[Pos]map[Pos]bool, progress []Pos) int {
+	Q := make([]Move, 0)
+	var e [32]rune
+	copy(e[:], []rune("== Engineering =="))
 
-func (d *Droid) searchEnv(start Pos, parents map[Pos]Pos) int {
-	Q := make([]Pos, 0)
-	explored := make(map[Pos]bool)
-	explored[start] = true
-	surroundings := make(map[Pos]Surrounding)
-	pastItems := make(map[Pos]map[int]bool)
-	Q = append(Q, start)
+	explored[e] = true
+	Q = append(Q, m)
 
 	for len(Q) > 0 {
 		fmt.Println(Q)
-		v := Q[0]
-		Q = Q[1:]
+		v := Q[len(Q)-1]
+		Q = Q[:len(Q)-1]
 
-		if _, ok := pastItems[v]; !ok {
-			items := make(map[int]bool)
-			pastItems[v] = items
-		}
-		d.move(v, parents)
-		s := parseOutput(v, d.output(), parents)
-		// take items if present
-		d.take(s, parents)
-		d.move(v, parents)
-		surroundings[v] = s
-		if s.giantElectromagnetFlag {
-			d.input([]rune("drop giant electromagnet\n"))
-			d.move(v, parents)
-			s = parseOutput(v, d.output(), parents)
+		// we need to backtrack to v position from where we are with the droid
+		from := progress[len(progress)-1]
+		for _, ok := neighbors[from][v.pos]; !ok; _, ok = neighbors[from][v.pos] {
+			to := progress[len(progress)-2]
+			dir := findDir(from, to)
+			d.move(dir)
+			progress = progress[:len(progress)-1]
+			from = progress[len(progress)-1]
 		}
 
-		// if s.locked {
-		// 	d.unlock(v, surroundings, pastItems)
-		// 	d.move(v)
-		// 	s = parseOutput(v, d.output())
+		fmt.Println("Move to: ", v.dir)
+		d.move(v.dir)
+		progress = append(progress, v.pos)
+		s := parseOutput(v, d.output())
+		// fmt.Println(v.pos, dirStr(v.dir), reveseDir(v.dir))
+		// if s.items[SpaceHeater] {
+		// 	d.move(findDir(v.pos, v.prev))
 		// }
-
-		// if s.security {
-		// 	d.input([]rune("inv\n"))
-		// 	s = parseOutput(v, d.output())
-		// 	for _, i := range s.inventory {
-		// 		if i == 0 {
-		// 			continue
-		// 		}
-		// 		var command string
-		// 		switch i {
-		// 		case Antenna:
-		// 			command = "drop antenna\n"
-		// 		case EscapePod:
-		// 			command = "drop escape pod\n"
-		// 		case InfiniteLoop:
-		// 			command = "drop infinite loop\n"
-		// 		case SpaceHeater:
-		// 			command = "drop space heater\n"
-		// 		case MoltenLava:
-		// 			command = "drop molten lava\n"
-		// 		}
-		//
-		// 		d.input([]rune(command))
-		// 		s = parseOutput(v, d.output())
-		// 	}
-		//
-		// 	d.move(v, parents)
-		// 	s = parseOutput(v, d.output())
-		// }
-
-		surroundings[v] = s
-
-		// if s.locked {
-		// 	explored[s.pos] = true
-		// 	Q = append(Q, s.pos)
-		// }
-		for _, w := range adjacentEdges(&s) {
-			parents[w] = v
-			// check to see if this door has been locked
-			// sw, ok1 := surroundings[w]
-			// _, ok2 := explored[w]
-
-			// if (ok1 && sw.locked) || !ok2 {
-			if s.items[MoltenLava] ||
-			s.festiveHatFlag {
-				// w == (Pos{0, 0}) {
-				continue
+		doors := adjacentEdges(&s)
+		n := make(map[Pos]bool)
+		for _, d := range doors {
+			n[d.pos] = true
+		}
+		neighbors[v.pos] = n
+		if !s.security && !s.locked {
+			fmt.Println("doors: ", doors)
+			fmt.Println("explored: ", explored)
+			for _, w := range doors {
+				if !d.addRoomIfNotExplored(v, w, explored) {
+					Q = append(Q, w)
+				}
 			}
-			// if !ok2 {
-			// explored[w] = true
-			Q = append(Q, w)
-			fmt.Println("******queued: ", w, "******")
-			// } else {
-			// fmt.Println("******explored: ", w, "******")
-			// }
 		}
-		fmt.Println("_____________________________________")
 	}
 
 	return -1
+}
+
+func (d *Droid) addRoomIfNotExplored(curr, next Move, explored map[[32]rune]bool) bool {
+	visited := true
+
+	// move to next room to see if it's visited
+	d.move(next.dir)
+
+	output := d.output()
+	lines := strings.Split(output, "\n")
+	var room string
+	for _, line := range lines {
+		if line != "" {
+			room = strings.TrimSpace(line)
+			break
+		}
+	}
+
+	var e [32]rune
+	copy(e[:], []rune(room))
+	if _, ok := explored[e]; !ok {
+		explored[e] = true
+		visited = false
+	}
+
+	// backtrack
+	p := findDir(next.pos, curr.pos)
+	d.move(p)
+
+	return visited
+}
+
+func reveseDir(dir int) int {
+	r := North
+	switch dir {
+	case North:
+		r = South
+	case South:
+		r = North
+	case West:
+		r = East
+	case East:
+		r = West
+	}
+
+	return r
 }
 
 func (d *Droid) take(s Surrounding, parents map[Pos]Pos) {
@@ -583,14 +593,14 @@ func (d *Droid) take(s Surrounding, parents map[Pos]Pos) {
 			command = "take fixed point\n"
 		case FestiveHat:
 			command = "take festive hat\n"
-		// case GiantElectromagnet:
-		// 	command = "take giant electromagnet\n"
+			// case GiantElectromagnet:
+			// 	command = "take giant electromagnet\n"
 		default:
 			continue
 		}
 
 		d.input([]rune(command))
-		_ = parseOutput(s.pos, d.output(), parents)
+		_ = parseOutput(s.m, d.output())
 	}
 }
 
@@ -598,8 +608,18 @@ func part1(input []int64) int64 {
 	comp := Droid{vm: NewVM()}
 	comp.vm.loadProgram(input)
 
-	parents := make(map[Pos]Pos)
-	return int64(comp.searchEnv(Pos{0, 0}, parents))
+	explored := make(map[[32]rune]bool)
+	neighbors := make(map[Pos]map[Pos]bool)
+	_ = parseOutput(Move{Pos{0, 0}, 0}, comp.output())
+	var e [32]rune
+	copy(e[:], []rune("== Hull Breach =="))
+	explored[e] = true
+	neighbors[Pos{0, 0}] = map[Pos]bool{{0, 1}: true}
+	progress := make([]Pos, 0)
+	progress = append(progress, Pos{0, 0})
+	_ = comp.searchEnv(Move{Pos{0, 1}, 2}, explored, neighbors, progress)
+
+	return -1
 }
 
 func (d *Droid) output() string {

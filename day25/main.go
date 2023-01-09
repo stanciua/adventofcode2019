@@ -7,9 +7,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-
-	// "github.com/k0kubun/pp"
-	// "github.com/k0kubun/pp"
 )
 
 const (
@@ -46,14 +43,10 @@ type Move struct {
 }
 
 type Surrounding struct {
-	m                      Move
-	doors                  [4]int
-	items                  [13]bool
-	inventory              [12]bool
-	locked                 bool
-	festiveHatFlag         bool
-	security               bool
-	giantElectromagnetFlag bool
+	m        Move
+	doors    [4]int
+	item     string
+	security bool
 }
 
 type Droid struct {
@@ -255,19 +248,13 @@ func (vm *VM) executeCurrentInstruction() {
 	}
 }
 
-func parseOutput(m Move, output string) Surrounding {
-	fmt.Println(m, output, m.dir)
-	surrounding := Surrounding{m, [4]int{}, [13]bool{}, [12]bool{}, false, false, false, false}
+func (d *Droid) parseOutput(m Move, output string) Surrounding {
+	surrounding := Surrounding{m, [4]int{}, "", false}
 	lines := strings.Split(output, "\n")
 	doorsFlag := false
 	doors := make([]int, 0)
 	itemsFlag := false
-	lockedFlag := false
 	securityFlag := false
-	inventoryFlag := false
-	giantElectromagnetFlag := false
-	festiveHatFlag := false
-	inventory := make([]int, 0)
 	for _, l := range lines {
 		if strings.HasPrefix(l, "Doors here lead:") {
 			doorsFlag = true
@@ -275,21 +262,9 @@ func parseOutput(m Move, output string) Surrounding {
 		} else if strings.HasPrefix(l, "Items here:") {
 			itemsFlag = true
 			continue
-		} else if strings.HasPrefix(l, "You can't go that way.") {
-			lockedFlag = true
-			break
 		} else if strings.HasPrefix(l, "== Security Checkpoint ==") {
 			securityFlag = true
 			break
-		} else if strings.HasPrefix(l, "Items in your inventory:") {
-			inventoryFlag = true
-			continue
-		} else if strings.HasPrefix(l, "The giant electromagnet is stuck to you.  You can't move!!") {
-			giantElectromagnetFlag = true
-			break
-		} else if strings.HasPrefix(l, "They're a little twisty and starting to look all alike.") {
-			festiveHatFlag = true
-			continue
 		}
 
 		if doorsFlag {
@@ -307,87 +282,24 @@ func parseOutput(m Move, output string) Surrounding {
 			}
 		}
 
-		// Antenna            int = 0
-		// EscapePod          int = 1
-		// InfiniteLoop       int = 2
-		// SpaceHeater        int = 3
-		// MoltenLava         int = 4
-		// FixedPoint         int = 5
-		// EasterEgg          int = 6
-		// FestiveHat         int = 7
-		// GiantElectromagnet int = 8
-		// Photons            int = 9
-		// Asterisk           int = 10
-		// Jam                int = 11
 		if itemsFlag {
-			if strings.HasPrefix(l, "- antenna") {
-				surrounding.items[Antenna] = true
-			} else if strings.HasPrefix(l, "- escape pod") {
-				surrounding.items[EscapePod] = true
-			} else if strings.HasPrefix(l, "- infinite loop") {
-				surrounding.items[InfiniteLoop] = true
-			} else if strings.HasPrefix(l, "- space heater") {
-				surrounding.items[SpaceHeater] = true
-			} else if strings.HasPrefix(l, "- molten lava") {
-				surrounding.items[MoltenLava] = true
-			} else if strings.HasPrefix(l, "- fixed point") {
-				surrounding.items[FixedPoint] = true
-			} else if strings.HasPrefix(l, "- easter egg") {
-				surrounding.items[EasterEgg] = true
-			} else if strings.HasPrefix(l, "- festive hat") {
-				surrounding.items[FestiveHat] = true
-			} else if strings.HasPrefix(l, "- giant electromagnet") {
-				surrounding.items[GiantElectromagnet] = true
-			} else if strings.HasPrefix(l, "- photons") {
-				surrounding.items[Photons] = true
-			} else if strings.HasPrefix(l, "- asterisk") {
-				surrounding.items[Asterisk] = true
-			} else if strings.HasPrefix(l, "- jam") {
-				surrounding.items[Jam] = true
-			} else if strings.HasPrefix(l, "- tambourine") {
-				surrounding.items[Tambourine] = true
-			} else if strings.HasPrefix(l, "- ") {
-				panic(fmt.Sprintln("unknown items found: ", l))
-			} else {
-				itemsFlag = false
-				continue
+			item := strings.TrimSpace(l)
+			item = strings.Trim(item, "- ")
+			surrounding.item = item
+			if item != "infinite loop" &&
+				item != "escape pod" &&
+				item != "molten lava" &&
+				item != "giant electromagnet" &&
+				item != "photons" {
+				d.input([]rune("take " + item + "\n"))
 			}
-		}
-
-		if inventoryFlag {
-			if strings.HasPrefix(l, "- infinite loop") {
-				surrounding.inventory[InfiniteLoop] = true
-			} else if strings.HasPrefix(l, "- escape pod") {
-				surrounding.inventory[EscapePod] = true
-			} else if strings.HasPrefix(l, "- antenna") {
-				surrounding.inventory[Antenna] = true
-			} else if strings.HasPrefix(l, "- space heater") {
-				surrounding.inventory[SpaceHeater] = true
-			} else if strings.HasPrefix(l, "- molten lava") {
-				surrounding.inventory[MoltenLava] = true
-			} else if strings.HasPrefix(l, "- fixed point") {
-				surrounding.inventory[FixedPoint] = true
-			} else if strings.HasPrefix(l, "- easter egg") {
-				surrounding.inventory[EasterEgg] = true
-			} else if strings.HasPrefix(l, "- festive hat") {
-				surrounding.inventory[FestiveHat] = true
-			} else if strings.HasPrefix(l, "- giant electromagnet") {
-				surrounding.inventory[GiantElectromagnet] = true
-			} else if strings.HasPrefix(l, "- ") {
-				fmt.Println(l)
-				inventory = append(inventory, 0)
-			} else {
-				inventoryFlag = false
-				continue
-			}
+			itemsFlag = false
+			continue
 		}
 	}
 
 	copy(surrounding.doors[:], doors)
-	surrounding.locked = lockedFlag
-	surrounding.festiveHatFlag = festiveHatFlag
 	surrounding.security = securityFlag
-	surrounding.giantElectromagnetFlag = giantElectromagnetFlag
 
 	return surrounding
 }
@@ -478,16 +390,19 @@ func (d *Droid) move(dir int) {
 	}
 }
 
-func (d *Droid) searchEnv(m Move, explored map[[32]rune]bool, neighbors map[Pos]map[Pos]bool, progress []Pos) int {
+func (d *Droid) searchEnv(m Move, explored map[[32]rune]bool, neighbors map[Pos]map[Pos]bool, progress []Pos, checkpoint bool) {
 	Q := make([]Move, 0)
 	var e [32]rune
-	copy(e[:], []rune("== Engineering =="))
+	if !checkpoint {
+		copy(e[:], []rune("== Engineering =="))
+	} else {
+		copy(e[:], []rune("== Hot Chocolate Fountain =="))
+	}
 
 	explored[e] = true
 	Q = append(Q, m)
 
 	for len(Q) > 0 {
-		fmt.Println(Q)
 		v := Q[len(Q)-1]
 		Q = Q[:len(Q)-1]
 
@@ -501,32 +416,46 @@ func (d *Droid) searchEnv(m Move, explored map[[32]rune]bool, neighbors map[Pos]
 			from = progress[len(progress)-1]
 		}
 
-		fmt.Println("Move to: ", v.dir)
 		d.move(v.dir)
 		progress = append(progress, v.pos)
-		s := parseOutput(v, d.output())
-		// fmt.Println(v.pos, dirStr(v.dir), reveseDir(v.dir))
-		// if s.items[SpaceHeater] {
-		// 	d.move(findDir(v.pos, v.prev))
-		// }
+		s := d.parseOutput(v, d.output())
 		doors := adjacentEdges(&s)
 		n := make(map[Pos]bool)
 		for _, d := range doors {
 			n[d.pos] = true
 		}
 		neighbors[v.pos] = n
-		if !s.security && !s.locked {
-			fmt.Println("doors: ", doors)
-			fmt.Println("explored: ", explored)
+		if !s.security {
 			for _, w := range doors {
 				if !d.addRoomIfNotExplored(v, w, explored) {
 					Q = append(Q, w)
 				}
 			}
+		} else {
+			if checkpoint {
+				return
+			}
 		}
 	}
+}
 
-	return -1
+func getCombinations(items []string, n, r int) [][]string {
+	combinations := make([][]string, 0)
+	combination := make([]string, r)
+	combinationsUtil(items, &combinations, combination, 0, n-1, 0, r)
+	return combinations
+}
+
+func combinationsUtil(items []string, combinations *[][]string, combination []string, start, end, index, r int) {
+	if index == r {
+		*combinations = append(*combinations, append([]string(nil), combination...))
+		return
+	}
+
+	for i := start; i <= end && end-i+1 >= r-index; i++ {
+		combination[index] = items[i]
+		combinationsUtil(items, combinations, combination, i+1, end, index+1, r)
+	}
 }
 
 func (d *Droid) addRoomIfNotExplored(curr, next Move, explored map[[32]rune]bool) bool {
@@ -575,51 +504,86 @@ func reveseDir(dir int) int {
 	return r
 }
 
-func (d *Droid) take(s Surrounding, parents map[Pos]Pos) {
-	for idx, i := range s.items {
-		if !i {
-			continue
-		}
-
-		var command string
-		switch idx {
-		case Antenna:
-			command = "take antenna\n"
-		case SpaceHeater:
-			command = "take space heater\n"
-		case EasterEgg:
-			command = "take easter egg\n"
-		case FixedPoint:
-			command = "take fixed point\n"
-		case FestiveHat:
-			command = "take festive hat\n"
-			// case GiantElectromagnet:
-			// 	command = "take giant electromagnet\n"
-		default:
-			continue
-		}
-
-		d.input([]rune(command))
-		_ = parseOutput(s.m, d.output())
-	}
-}
-
 func part1(input []int64) int64 {
 	comp := Droid{vm: NewVM()}
 	comp.vm.loadProgram(input)
 
 	explored := make(map[[32]rune]bool)
 	neighbors := make(map[Pos]map[Pos]bool)
-	_ = parseOutput(Move{Pos{0, 0}, 0}, comp.output())
+	_ = comp.parseOutput(Move{Pos{0, 0}, 0}, comp.output())
 	var e [32]rune
 	copy(e[:], []rune("== Hull Breach =="))
 	explored[e] = true
 	neighbors[Pos{0, 0}] = map[Pos]bool{{0, 1}: true}
 	progress := make([]Pos, 0)
 	progress = append(progress, Pos{0, 0})
-	_ = comp.searchEnv(Move{Pos{0, 1}, 2}, explored, neighbors, progress)
+	comp.searchEnv(Move{Pos{0, 1}, 2}, explored, neighbors, progress, false)
 
+	comp.searchEnv(Move{Pos{0, 1}, 2}, explored, neighbors, progress, false)
+	// search for the checkpoint now
+	explored = make(map[[32]rune]bool)
+	neighbors = make(map[Pos]map[Pos]bool)
+	_ = comp.parseOutput(Move{Pos{0, 0}, 0}, comp.output())
+	var ne [32]rune
+	copy(ne[:], []rune("== Hot Chocolate Fountain =="))
+	explored[e] = true
+	neighbors[Pos{0, 0}] = map[Pos]bool{{0, 1}: true}
+	progress = make([]Pos, 0)
+	progress = append(progress, Pos{0, 0})
+	comp.searchEnv(Move{Pos{0, 1}, 4}, explored, neighbors, progress, true)
+	items := []string{"asterisk",
+		"antenna",
+		"easter egg",
+		"space heater",
+		"jam",
+		"tambourine",
+		"festive hat",
+		"fixed point"}
+	for r := 1; r <= 8; r++ {
+
+		combinations := getCombinations(items, 8, r)
+
+		for c := range combinations {
+			// drop all items
+			for _, item := range items {
+				comp.input([]rune("drop " + item + "\n"))
+			}
+			for _, i := range combinations[c] {
+				comp.input([]rune("take " + i + "\n"))
+			}
+			comp.move(West)
+			output := comp.output()
+			if strings.Contains(output, "Oh, hello!") {
+				for _, line := range strings.Split(output, "\n") {
+					if !strings.Contains(line, "Oh, hello!") {
+						continue
+					}
+
+					for _, w := range strings.Split(line, " ") {
+						w = strings.TrimSpace(w)
+						code, err := strconv.ParseInt(w, 0, 64)
+						if err == nil {
+							return code
+						}
+					}
+				}
+			}
+		}
+	}
 	return -1
+}
+
+func getRoomId(output string) string {
+	lines := strings.Split(output, "\n")
+	var room string
+	for _, line := range lines {
+		if line != "" {
+			room = strings.TrimSpace(line)
+			break
+		}
+	}
+
+	return room
 }
 
 func (d *Droid) output() string {
@@ -631,7 +595,8 @@ func (d *Droid) output() string {
 		if d.vm.outputReady {
 			output.WriteRune(rune(d.vm.output))
 			d.vm.outputReady = false
-			if strings.HasSuffix(output.String(), "Command?\n") {
+			if strings.HasSuffix(output.String(), "Command?\n") ||
+				strings.Contains(output.String(), "airlock.") {
 				break
 			}
 		}
@@ -709,7 +674,4 @@ func main() {
 	}
 	// part 1 solution
 	fmt.Println("The result to 1st part is: ", part1(program))
-
-	// part 2 solution
-	fmt.Println("The result to 2nd part is: ", part2(program))
 }

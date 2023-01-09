@@ -10,22 +10,6 @@ import (
 )
 
 const (
-	Antenna            int = 0
-	EscapePod          int = 1
-	InfiniteLoop       int = 2
-	SpaceHeater        int = 3
-	MoltenLava         int = 4
-	FixedPoint         int = 5
-	EasterEgg          int = 6
-	FestiveHat         int = 7
-	GiantElectromagnet int = 8
-	Photons            int = 9
-	Asterisk           int = 10
-	Jam                int = 11
-	Tambourine         int = 12
-)
-
-const (
 	North int = 1
 	South int = 2
 	East  int = 3
@@ -42,7 +26,7 @@ type Move struct {
 	dir int
 }
 
-type Surrounding struct {
+type Room struct {
 	m        Move
 	doors    [4]int
 	item     string
@@ -248,8 +232,8 @@ func (vm *VM) executeCurrentInstruction() {
 	}
 }
 
-func (d *Droid) parseOutput(m Move, output string) Surrounding {
-	surrounding := Surrounding{m, [4]int{}, "", false}
+func (d *Droid) parseOutput(m Move, output string) Room {
+	room := Room{m, [4]int{}, "", false}
 	lines := strings.Split(output, "\n")
 	doorsFlag := false
 	doors := make([]int, 0)
@@ -285,7 +269,7 @@ func (d *Droid) parseOutput(m Move, output string) Surrounding {
 		if itemsFlag {
 			item := strings.TrimSpace(l)
 			item = strings.Trim(item, "- ")
-			surrounding.item = item
+			room.item = item
 			if item != "infinite loop" &&
 				item != "escape pod" &&
 				item != "molten lava" &&
@@ -298,13 +282,13 @@ func (d *Droid) parseOutput(m Move, output string) Surrounding {
 		}
 	}
 
-	copy(surrounding.doors[:], doors)
-	surrounding.security = securityFlag
+	copy(room.doors[:], doors)
+	room.security = securityFlag
 
-	return surrounding
+	return room
 }
 
-func adjacentEdges(s *Surrounding) []Move {
+func adjacentEdges(s *Room) []Move {
 	moves := make([]Move, 0)
 	for _, d := range s.doors {
 		if d == 0 {
@@ -392,14 +376,6 @@ func (d *Droid) move(dir int) {
 
 func (d *Droid) searchEnv(m Move, explored map[[32]rune]bool, neighbors map[Pos]map[Pos]bool, progress []Pos, checkpoint bool) {
 	Q := make([]Move, 0)
-	var e [32]rune
-	if !checkpoint {
-		copy(e[:], []rune("== Engineering =="))
-	} else {
-		copy(e[:], []rune("== Hot Chocolate Fountain =="))
-	}
-
-	explored[e] = true
 	Q = append(Q, m)
 
 	for len(Q) > 0 {
@@ -417,8 +393,13 @@ func (d *Droid) searchEnv(m Move, explored map[[32]rune]bool, neighbors map[Pos]
 		}
 
 		d.move(v.dir)
+
 		progress = append(progress, v.pos)
-		s := d.parseOutput(v, d.output())
+		output := d.output()
+		var r [32]rune
+		copy(r[:], []rune(getRoomId(output)))
+		explored[r] = true
+		s := d.parseOutput(v, output)
 		doors := adjacentEdges(&s)
 		n := make(map[Pos]bool)
 		for _, d := range doors {
@@ -505,54 +486,55 @@ func reveseDir(dir int) int {
 }
 
 func part1(input []int64) int64 {
+	// Note: the code is specific to my inputs, it's not generic for other type of inputs
+	//       as it take too much to handle every bad input generically.
 	comp := Droid{vm: NewVM()}
 	comp.vm.loadProgram(input)
 
+	// search for all the items
 	explored := make(map[[32]rune]bool)
 	neighbors := make(map[Pos]map[Pos]bool)
-	_ = comp.parseOutput(Move{Pos{0, 0}, 0}, comp.output())
+	output := comp.output()
 	var e [32]rune
-	copy(e[:], []rune("== Hull Breach =="))
+	copy(e[:], []rune(getRoomId(output)))
 	explored[e] = true
 	neighbors[Pos{0, 0}] = map[Pos]bool{{0, 1}: true}
 	progress := make([]Pos, 0)
 	progress = append(progress, Pos{0, 0})
 	comp.searchEnv(Move{Pos{0, 1}, 2}, explored, neighbors, progress, false)
 
-	comp.searchEnv(Move{Pos{0, 1}, 2}, explored, neighbors, progress, false)
 	// search for the checkpoint now
 	explored = make(map[[32]rune]bool)
 	neighbors = make(map[Pos]map[Pos]bool)
-	_ = comp.parseOutput(Move{Pos{0, 0}, 0}, comp.output())
+	output = comp.output()
 	var ne [32]rune
-	copy(ne[:], []rune("== Hot Chocolate Fountain =="))
+	copy(ne[:], []rune(getRoomId(output)))
 	explored[e] = true
 	neighbors[Pos{0, 0}] = map[Pos]bool{{0, 1}: true}
 	progress = make([]Pos, 0)
 	progress = append(progress, Pos{0, 0})
+
 	comp.searchEnv(Move{Pos{0, 1}, 4}, explored, neighbors, progress, true)
-	items := []string{"asterisk",
-		"antenna",
-		"easter egg",
-		"space heater",
-		"jam",
-		"tambourine",
-		"festive hat",
-		"fixed point"}
+	comp.input([]rune("inv\n"))
+	items := itemsFromInventory(comp.output())
+
+	return comp.findCode(items)
+}
+
+func (d *Droid) findCode(items []string) int64 {
+	// brute force all the items combinations to find the code
 	for r := 1; r <= 8; r++ {
-
 		combinations := getCombinations(items, 8, r)
-
 		for c := range combinations {
 			// drop all items
 			for _, item := range items {
-				comp.input([]rune("drop " + item + "\n"))
+				d.input([]rune("drop " + item + "\n"))
 			}
 			for _, i := range combinations[c] {
-				comp.input([]rune("take " + i + "\n"))
+				d.input([]rune("take " + i + "\n"))
 			}
-			comp.move(West)
-			output := comp.output()
+			d.move(West)
+			output := d.output()
 			if strings.Contains(output, "Oh, hello!") {
 				for _, line := range strings.Split(output, "\n") {
 					if !strings.Contains(line, "Oh, hello!") {
@@ -570,7 +552,26 @@ func part1(input []int64) int64 {
 			}
 		}
 	}
+
 	return -1
+}
+
+func itemsFromInventory(output string) []string {
+	items := make([]string, 0)
+
+	lines := strings.Split(output, "\n")
+	for _, line := range lines {
+		if !strings.HasPrefix(line, "- ") {
+			continue
+		}
+
+		item := strings.Trim(line, "- ")
+		item = strings.TrimSpace(item)
+
+		items = append(items, item)
+	}
+
+	return items
 }
 
 func getRoomId(output string) string {

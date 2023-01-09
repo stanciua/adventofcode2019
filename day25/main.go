@@ -336,24 +336,6 @@ func findDir(from Pos, to Pos) int {
 	return d
 }
 
-func dirStr(dir int) string {
-	var ds string
-	switch dir {
-	case North:
-		ds = "north"
-	case South:
-		ds = "south"
-	case West:
-		ds = "west"
-	case East:
-		ds = "east"
-	default:
-		ds = "UNKNOWN"
-	}
-
-	return ds
-}
-
 func (d *Droid) move(dir int) {
 	var m string
 	switch dir {
@@ -467,22 +449,6 @@ func (d *Droid) addRoomIfNotExplored(curr, next Move, explored map[[32]rune]bool
 	d.move(p)
 
 	return visited
-}
-
-func reveseDir(dir int) int {
-	r := North
-	switch dir {
-	case North:
-		r = South
-	case South:
-		r = North
-	case West:
-		r = East
-	case East:
-		r = West
-	}
-
-	return r
 }
 
 func part1(input []int64) int64 {
@@ -614,30 +580,6 @@ func (d *Droid) input(command []rune) {
 			command = command[1:]
 		}
 		d.vm.executeCurrentInstruction()
-	}
-}
-
-func part2(input []int64) int64 {
-	comp := Droid{vm: NewVM()}
-	comp.vm.loadProgram(input)
-	return -1
-}
-
-func (comp *Droid) boot(address int64) {
-	done := false
-	for {
-		comp.vm.currInstruction = comp.vm.decodeCurrentInstruction()
-		if comp.vm.currInstruction.opcode == Input {
-			comp.vm.input = []int64{address}
-			done = true
-
-		}
-
-		comp.vm.executeCurrentInstruction()
-
-		if done {
-			break
-		}
 	}
 }
 
